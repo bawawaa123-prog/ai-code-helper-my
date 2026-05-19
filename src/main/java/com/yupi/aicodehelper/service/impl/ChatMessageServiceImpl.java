@@ -10,6 +10,8 @@ import com.yupi.aicodehelper.model.vo.ChatMessageVO;
 import com.yupi.aicodehelper.service.ChatMessageService;
 import com.yupi.aicodehelper.service.ChatSessionService;
 import jakarta.annotation.Resource;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,16 +24,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     @Override
     public List<ChatMessageVO> listSessionMessages(Long userId, Long sessionId) {
-        if (sessionId == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "会话 id 不能为空");
-        }
-        ChatSession chatSession = chatSessionService.getById(sessionId);
-        if (chatSession == null || chatSession.getIsDelete() != null && chatSession.getIsDelete() == 1) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "会话不存在");
-        }
-        if (!chatSession.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该会话");
-        }
+        validateSessionAccess(userId, sessionId);
 
         return lambdaQuery()
                 .eq(ChatMessage::getSessionId, sessionId)
@@ -41,6 +34,26 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 .stream()
                 .map(this::toChatMessageVO)
                 .toList();
+    }
+
+    @Override
+    public List<ChatMessage> listRecentMessages(Long userId, Long sessionId, int limit) {
+        validateSessionAccess(userId, sessionId);
+        int finalLimit = limit > 0 ? limit : 10;
+
+        List<ChatMessage> recentMessages = lambdaQuery()
+                .eq(ChatMessage::getUserId, userId)
+                .eq(ChatMessage::getSessionId, sessionId)
+                .eq(ChatMessage::getIsDelete, 0)
+                .eq(ChatMessage::getStatus, "success")
+                .in(ChatMessage::getRole, "user", "assistant")
+                .orderByDesc(ChatMessage::getCreateTime)
+                .last("limit " + finalLimit)
+                .list();
+
+        List<ChatMessage> orderedMessages = new ArrayList<>(recentMessages);
+        Collections.reverse(orderedMessages);
+        return orderedMessages;
     }
 
     @Override
@@ -68,6 +81,19 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         boolean saved = save(chatMessage);
         if (!saved) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存聊天消息失败");
+        }
+    }
+
+    private void validateSessionAccess(Long userId, Long sessionId) {
+        if (sessionId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "会话 id 不能为空");
+        }
+        ChatSession chatSession = chatSessionService.getById(sessionId);
+        if (chatSession == null || chatSession.getIsDelete() != null && chatSession.getIsDelete() == 1) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "会话不存在");
+        }
+        if (!chatSession.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该会话");
         }
     }
 

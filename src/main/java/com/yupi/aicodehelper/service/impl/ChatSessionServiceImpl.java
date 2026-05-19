@@ -12,6 +12,7 @@ import jakarta.annotation.Resource;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -53,7 +54,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @SuppressWarnings("unchecked")
     public List<ChatSessionVO> listMySessions(Long userId) {
         String cacheKey = buildSessionListCacheKey(userId);
-        Object cachedValue = redisTemplate.opsForValue().get(cacheKey);
+        Object cachedValue = getCachedValueSafely(cacheKey);
         if (cachedValue instanceof List<?>) {
             return (List<ChatSessionVO>) cachedValue;
         }
@@ -228,6 +229,15 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     private void deleteSessionListCache(Long userId) {
         redisTemplate.delete(buildSessionListCacheKey(userId));
+    }
+
+    private Object getCachedValueSafely(String cacheKey) {
+        try {
+            return redisTemplate.opsForValue().get(cacheKey);
+        } catch (SerializationException e) {
+            redisTemplate.delete(cacheKey);
+            return null;
+        }
     }
 
     private ChatSessionVO toChatSessionVO(ChatSession chatSession) {

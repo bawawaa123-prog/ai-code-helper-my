@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -55,7 +56,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String cacheKey = UserService.LOGIN_USER_KEY_PREFIX + userId;
-        Object cachedUser = redisTemplate.opsForValue().get(cacheKey);
+        Object cachedUser = getCachedValueSafely(cacheKey);
         User loginUser = convertCachedUser(cachedUser);
         if (loginUser != null) {
             LoginUserHolder.set(loginUser);
@@ -83,5 +84,14 @@ public class AuthInterceptor implements HandlerInterceptor {
             return user;
         }
         return null;
+    }
+
+    private Object getCachedValueSafely(String cacheKey) {
+        try {
+            return redisTemplate.opsForValue().get(cacheKey);
+        } catch (SerializationException e) {
+            redisTemplate.delete(cacheKey);
+            return null;
+        }
     }
 }

@@ -6,6 +6,7 @@ import com.yupi.aicodehelper.auth.LoginUserHolder;
 import com.yupi.aicodehelper.common.ErrorCode;
 import com.yupi.aicodehelper.exception.BusinessException;
 import com.yupi.aicodehelper.model.dto.chat.ChatStreamRequest;
+import com.yupi.aicodehelper.model.entity.ChatMessage;
 import com.yupi.aicodehelper.model.entity.ChatSession;
 import com.yupi.aicodehelper.model.entity.User;
 import com.yupi.aicodehelper.service.ChatMessageService;
@@ -24,12 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 
 @Slf4j
 @RestController
 @RequestMapping("/ai")
 public class AiController {
+
+    private static final int HISTORY_MESSAGE_LIMIT = 10;
 
     @Resource
     private AiCodeHelperServiceFactory aiCodeHelperServiceFactory;
@@ -75,6 +79,9 @@ public class AiController {
                 : ragProperties.isEnabledByDefault();
         String message = request.getMessage().trim();
         String memoryKey = loginUser.getId() + ":" + request.getSessionId();
+        List<ChatMessage> recentMessages = chatMessageService.listRecentMessages(
+                loginUser.getId(), request.getSessionId(), HISTORY_MESSAGE_LIMIT);
+        aiCodeHelperServiceFactory.reloadMemory(memoryKey, recentMessages);
         chatMessageService.saveUserMessage(loginUser.getId(), request.getSessionId(), message, finalUseRag);
         chatSessionService.autoUpdateTitleIfNecessary(loginUser.getId(), request.getSessionId(), message);
 

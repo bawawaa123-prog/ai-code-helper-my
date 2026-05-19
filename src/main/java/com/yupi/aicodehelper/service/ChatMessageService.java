@@ -9,6 +9,8 @@ public interface ChatMessageService extends IService<ChatMessage> {
 
     List<ChatMessageVO> listSessionMessages(Long userId, Long sessionId);
 
+    List<ChatMessage> listRecentMessages(Long userId, Long sessionId, int limit);
+
     void saveUserMessage(Long userId, Long sessionId, String content, Boolean ragEnabled);
 
     void saveAssistantMessage(Long userId, Long sessionId, String content, Boolean ragEnabled, String status);
