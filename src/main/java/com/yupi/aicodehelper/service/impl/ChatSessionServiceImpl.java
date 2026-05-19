@@ -8,7 +8,10 @@ import com.yupi.aicodehelper.model.dto.chat.ChatSessionCreateRequest;
 import com.yupi.aicodehelper.model.entity.ChatSession;
 import com.yupi.aicodehelper.model.vo.ChatSessionVO;
 import com.yupi.aicodehelper.service.ChatSessionService;
+import jakarta.annotation.Resource;
+import java.time.Duration;
 import java.util.List;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,6 +26,13 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     private static final int LAST_MESSAGE_MAX_LENGTH = 512;
 
+    private static final String SESSION_LIST_CACHE_KEY_PREFIX = "chat:sessions:";
+
+    private static final Duration SESSION_LIST_CACHE_TTL = Duration.ofMinutes(30);
+
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
     @Override
     public Long createSession(Long userId, ChatSessionCreateRequest request) {
         ChatSession chatSession = new ChatSession();
@@ -35,12 +45,20 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (!saved || chatSession.getId() == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "创建会话失败");
         }
+        deleteSessionListCache(userId);
         return chatSession.getId();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public List<ChatSessionVO> listMySessions(Long userId) {
-        return lambdaQuery()
+        String cacheKey = buildSessionListCacheKey(userId);
+        Object cachedValue = redisTemplate.opsForValue().get(cacheKey);
+        if (cachedValue instanceof List<?>) {
+            return (List<ChatSessionVO>) cachedValue;
+        }
+
+        List<ChatSessionVO> sessionList = lambdaQuery()
                 .eq(ChatSession::getUserId, userId)
                 .eq(ChatSession::getIsDelete, 0)
                 .orderByDesc(ChatSession::getUpdateTime)
@@ -48,6 +66,8 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 .stream()
                 .map(this::toChatSessionVO)
                 .toList();
+        redisTemplate.opsForValue().set(cacheKey, sessionList, SESSION_LIST_CACHE_TTL);
+        return sessionList;
     }
 
     @Override
@@ -75,6 +95,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (!updated) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新会话标题失败");
         }
+        deleteSessionListCache(userId);
     }
 
     @Override
@@ -95,6 +116,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (!updated) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除会话失败");
         }
+        deleteSessionListCache(userId);
     }
 
     @Override
@@ -117,6 +139,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (!updated) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新会话信息失败");
         }
+        deleteSessionListCache(userId);
     }
 
     @Override
@@ -141,6 +164,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (!updated) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "自动更新会话标题失败");
         }
+        deleteSessionListCache(userId);
     }
 
     private void validateOwnedSession(Long userId, ChatSession chatSession) {
@@ -196,6 +220,14 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     private boolean resolveUseRag(ChatSessionCreateRequest request) {
         return request != null && Boolean.TRUE.equals(request.getUseRag());
+    }
+
+    private String buildSessionListCacheKey(Long userId) {
+        return SESSION_LIST_CACHE_KEY_PREFIX + userId;
+    }
+
+    private void deleteSessionListCache(Long userId) {
+        redisTemplate.delete(buildSessionListCacheKey(userId));
     }
 
     private ChatSessionVO toChatSessionVO(ChatSession chatSession) {
