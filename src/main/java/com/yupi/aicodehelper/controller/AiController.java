@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RestController
@@ -65,6 +66,8 @@ public class AiController {
     public Flux<ServerSentEvent<String>> chat(int memoryId, String message,
                                               @RequestParam(required = false) Boolean useRag) {
         boolean finalUseRag = useRag != null ? useRag : ragProperties.isEnabledByDefault();
+        log.info("/ai/chat request: memoryId={}, useRag={}, messageLength={}", memoryId, finalUseRag,
+                message == null ? 0 : message.length());
         return aiCodeHelperServiceFactory.chatStream(String.valueOf(memoryId), message, finalUseRag)
                 .map(chunk -> ServerSentEvent.<String>builder()
                         .data(chunk)
@@ -91,14 +94,21 @@ public class AiController {
         boolean finalUseRag = request.getUseRag() != null
                 ? request.getUseRag()
                 : ragProperties.isEnabledByDefault();
+        System.out.println("finalUseRag的值："+finalUseRag);
         String message = request.getMessage().trim();
         String memoryKey = loginUser.getId() + ":" + request.getSessionId();
         List<ChatMessage> recentMessages = chatMessageService.listRecentMessages(
                 loginUser.getId(), request.getSessionId(), HISTORY_MESSAGE_LIMIT);
+        System.out.println("最近对话的内容："+recentMessages);
+
+        log.info("/ai/chat/stream request: userId={}, sessionId={}, useRag={}, memoryKey={}, recentMessageCount={}, messageLength={}",
+                loginUser.getId(), request.getSessionId(), finalUseRag, memoryKey,
+                recentMessages == null ? 0 : recentMessages.size(), message.length());
+        log.debug("Recent chat messages for memory reload: {}", recentMessages);
+
         aiCodeHelperServiceFactory.reloadMemory(memoryKey, recentMessages);
         chatMessageService.saveUserMessage(loginUser.getId(), request.getSessionId(), message, finalUseRag);
         chatSessionService.autoUpdateTitleIfNecessary(loginUser.getId(), request.getSessionId(), message);
-
         StringBuilder assistantReplyBuilder = new StringBuilder();
         Long sessionId = request.getSessionId();
         Long userId = loginUser.getId();
@@ -131,9 +141,12 @@ public class AiController {
             return Flux.empty();
         }
         if (!finalUseRag) {
+            log.debug("RAG disabled for this request, skip sources query. messageLength={}", message == null ? 0 : message.length());
             return Flux.just(buildEvent(SSE_EVENT_DONE, "done"));
         }
+        log.debug("RAG enabled for this request, querying sources. messageLength={}", message == null ? 0 : message.length());
         String sourcesJson = serializeSources(message);
+        log.debug("RAG sources query finished, sourcesJson={}", sourcesJson);
         return Flux.just(
                 buildEvent(SSE_EVENT_SOURCES, sourcesJson),
                 buildEvent(SSE_EVENT_DONE, "done")

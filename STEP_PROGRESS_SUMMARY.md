@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 25`
+当前已完成到：`Step 26`
 
 ## Step 1
 
@@ -384,3 +384,29 @@
   - `done` 时仅在调用方传入 `onDone` 后回调
 - 当前 `App.vue` 未修改，现有聊天页面行为保持不变
 - 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 25
+
+## Step 26
+
+目标：
+- 前端展示 RAG 来源引用卡片，让 RAG 模式回答结束后在 AI 消息下方显示参考来源
+
+结果：
+- 修改 `frontend/src/App.vue`
+- 前端消息结构新增 `sources` 字段：
+  - `createMessage` 默认带 `sources: []`
+  - 默认欢迎消息的 `sources` 为空
+  - 历史消息转换后的 `sources` 也为空
+- 在 `sendMessage` 调用 `streamChatBySession` 时接入 `onSources`
+- `onSources(sources)` 只会把来源结果写入当前这轮的 `assistantMessage.sources`
+- `sources` 不会拼接进回答正文，也不会持久化到历史消息中
+- 仅当 assistant 消息存在非空 `sources` 数组时，在回答气泡下方展示“参考来源”卡片
+- 来源卡片展示内容包括：
+  - `sourceName`
+  - `content`
+  - `score`
+- `sourceName` 为空时显示“未知来源”
+- `content` 为空时不展示空内容
+- 修改 `frontend/src/styles.css`
+- 已补充来源卡片样式，整体风格与现有 assistant 气泡保持一致
+- 非 RAG 模式或 `sources` 为空数组时，不展示来源卡片
+- 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 26

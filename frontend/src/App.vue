@@ -87,12 +87,10 @@ const ragDescription = computed(() => {
 
 function createDefaultMessages() {
   return [
-    {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content:
-        "你好，我是 AI 编程小助手。你可以直接问我学习路线、项目实战、面试题，或者让我帮你模拟面试。"
-    }
+    createMessage(
+      "assistant",
+      "你好，我是 AI 编程小助手。你可以直接问我学习路线、项目实战、面试题，或者让我帮你模拟面试。"
+    )
   ];
 }
 
@@ -132,7 +130,8 @@ function createMessage(role, content = "") {
   return {
     id: crypto.randomUUID(),
     role,
-    content
+    content,
+    sources: []
   };
 }
 
@@ -163,7 +162,8 @@ function convertHistoryMessages(historyList = []) {
   return historyList.map((item) => ({
     id: item.id || crypto.randomUUID(),
     role: item.role === "user" ? "user" : "assistant",
-    content: item.content || ""
+    content: item.content || "",
+    sources: []
   }));
 }
 
@@ -415,6 +415,10 @@ async function sendMessage(prefilledMessage) {
       onChunk(chunk) {
         assistantMessage.content += chunk;
         scrollToBottom();
+      },
+      onSources(sources) {
+        assistantMessage.sources = Array.isArray(sources) ? sources : [];
+        scrollToBottom();
       }
     });
 
@@ -580,6 +584,31 @@ onBeforeUnmount(() => {
                   <div class="message-bubble">
                     {{ message.content || "正在思考中..." }}
                   </div>
+                  <section
+                    v-if="
+                      message.role === 'assistant' &&
+                      Array.isArray(message.sources) &&
+                      message.sources.length > 0
+                    "
+                    class="source-card-list"
+                  >
+                    <div class="source-card-header">参考来源</div>
+                    <article
+                      v-for="(source, index) in message.sources"
+                      :key="`${message.id}-source-${index}`"
+                      class="source-card"
+                    >
+                      <div class="source-card-top">
+                        <strong class="source-name">{{ source?.sourceName || "未知来源" }}</strong>
+                        <span v-if="source?.score != null" class="source-score">
+                          相似度 {{ Number(source.score).toFixed(3) }}
+                        </span>
+                      </div>
+                      <p v-if="source?.content" class="source-content">
+                        {{ source.content }}
+                      </p>
+                    </article>
+                  </section>
                 </div>
               </article>
             </section>

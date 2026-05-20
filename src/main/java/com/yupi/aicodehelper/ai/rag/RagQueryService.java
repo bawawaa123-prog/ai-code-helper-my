@@ -32,12 +32,15 @@ public class RagQueryService {
         try {
             ContentRetriever contentRetriever = contentRetrieverProvider.getIfAvailable();
             if (contentRetriever == null) {
+                System.out.println("检索器为null");
                 return Collections.emptyList();
             }
             List<Content> contents = contentRetriever.retrieve(Query.from(query));
             if (contents == null || contents.isEmpty()) {
+                System.out.println("检索器出的内容为空");
                 return Collections.emptyList();
             }
+            System.out.println("检索的内容为："+contents);
             return contents.stream()
                     .map(this::toRagSourceVO)
                     .toList();
