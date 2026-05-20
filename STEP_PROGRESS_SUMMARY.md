@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 26`
+当前已完成到：`Step 27`
 
 ## Step 1
 
@@ -410,3 +410,29 @@
 - 已补充来源卡片样式，整体风格与现有 assistant 气泡保持一致
 - 非 RAG 模式或 `sources` 为空数组时，不展示来源卡片
 - 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 26
+
+## Step 27
+
+目标：
+- 优化 RAG 来源引用卡片交互，将参考来源内容默认折叠，用户点击后再展开查看具体片段内容
+
+结果：
+- 修改 `frontend/src/App.vue`
+- 前端消息结构新增 `sourcesExpanded` 字段：
+  - `createMessage` 默认带 `sourcesExpanded: false`
+  - 默认欢迎消息的 `sourcesExpanded` 为 `false`
+  - 历史消息转换后的 `sourcesExpanded` 也为 `false`
+- 参考来源入口默认折叠，仅显示“参考来源（数量）”
+- 用户点击后可以展开来源列表，再次点击可以收起
+- 每条 assistant 消息的来源卡片独立控制展开 / 收起，互不影响
+- 折叠状态仅保存在前端临时内存中，不做持久化，不写入后端或 localStorage
+- 展开后继续沿用 Step 26 的展示逻辑：
+  - `sourceName`
+  - `content`
+  - `score`
+- `sourceName` 为空时显示“未知来源”
+- `content` 为空时不展示空内容
+- 修改 `frontend/src/styles.css`
+- 已优化折叠态样式和可点击状态，不影响普通 AI 消息和用户消息样式
+- 本 Step 仅做 RAG 来源卡片折叠交互优化，未修改 SSE 协议、`chat.js` 或知识库管理逻辑
+- 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 27

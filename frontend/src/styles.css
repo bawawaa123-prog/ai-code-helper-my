@@ -607,11 +607,24 @@ button {
   display: grid;
   gap: 10px;
   margin-top: 12px;
-  padding: 14px 16px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 16px;
   box-shadow: var(--shadow-md);
+}
+
+.source-card-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 2px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
 }
 
 .source-card-header {
@@ -620,6 +633,18 @@ button {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.source-card-indicator {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.source-card-body {
+  display: grid;
+  gap: 10px;
 }
 
 .source-card {
@@ -640,20 +665,22 @@ button {
 }
 
 .source-name {
-  color: #111827;
+  color: #2563eb;
   font-size: 13px;
   line-height: 1.4;
+  font-weight: 700;
 }
 
 .source-score {
-  color: #4b5563;
+  color: #2563eb;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1.4;
 }
 
 .source-content {
   margin: 0;
-  color: #374151;
+  color: #2563eb;
   font-size: 13px;
   line-height: 1.7;
   white-space: pre-wrap;

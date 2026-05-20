@@ -131,7 +131,8 @@ function createMessage(role, content = "") {
     id: crypto.randomUUID(),
     role,
     content,
-    sources: []
+    sources: [],
+    sourcesExpanded: false
   };
 }
 
@@ -163,8 +164,16 @@ function convertHistoryMessages(historyList = []) {
     id: item.id || crypto.randomUUID(),
     role: item.role === "user" ? "user" : "assistant",
     content: item.content || "",
-    sources: []
+    sources: [],
+    sourcesExpanded: false
   }));
+}
+
+function toggleSources(message) {
+  if (!message || !Array.isArray(message.sources) || message.sources.length === 0) {
+    return;
+  }
+  message.sourcesExpanded = !message.sourcesExpanded;
 }
 
 async function loadSessionMessages(sessionId) {
@@ -592,22 +601,33 @@ onBeforeUnmount(() => {
                     "
                     class="source-card-list"
                   >
-                    <div class="source-card-header">参考来源</div>
-                    <article
-                      v-for="(source, index) in message.sources"
-                      :key="`${message.id}-source-${index}`"
-                      class="source-card"
+                    <button
+                      class="source-card-toggle"
+                      type="button"
+                      @click="toggleSources(message)"
                     >
-                      <div class="source-card-top">
-                        <strong class="source-name">{{ source?.sourceName || "未知来源" }}</strong>
-                        <span v-if="source?.score != null" class="source-score">
-                          相似度 {{ Number(source.score).toFixed(3) }}
-                        </span>
-                      </div>
-                      <p v-if="source?.content" class="source-content">
-                        {{ source.content }}
-                      </p>
-                    </article>
+                      <span class="source-card-header">参考来源（{{ message.sources.length }}）</span>
+                      <span class="source-card-indicator">
+                        {{ message.sourcesExpanded ? "收起" : "展开" }}
+                      </span>
+                    </button>
+                    <div v-if="message.sourcesExpanded" class="source-card-body">
+                      <article
+                        v-for="(source, index) in message.sources"
+                        :key="`${message.id}-source-${index}`"
+                        class="source-card"
+                      >
+                        <div class="source-card-top">
+                          <strong class="source-name">{{ source?.sourceName || "未知来源" }}</strong>
+                          <span v-if="source?.score != null" class="source-score">
+                            相似度 {{ Number(source.score).toFixed(3) }}
+                          </span>
+                        </div>
+                        <p v-if="source?.content" class="source-content">
+                          {{ source.content }}
+                        </p>
+                      </article>
+                    </div>
                   </section>
                 </div>
               </article>
