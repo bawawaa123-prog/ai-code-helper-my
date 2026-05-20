@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 27`
+当前已完成到：`Step 28`
 
 ## Step 1
 
@@ -436,3 +436,41 @@
 - 已优化折叠态样式和可点击状态，不影响普通 AI 消息和用户消息样式
 - 本 Step 仅做 RAG 来源卡片折叠交互优化，未修改 SSE 协议、`chat.js` 或知识库管理逻辑
 - 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 27
+
+## Step 28
+
+目标：
+- 新增知识库、知识库文档、知识库切片的数据表结构与后端基础模型，为后续文档上传、解析切片和向量化检索做准备
+
+结果：
+- 修改 `src/main/resources/sql/init.sql`
+- 新增知识库相关三张表：
+  - `knowledge_base`
+  - `knowledge_document`
+  - `knowledge_segment`
+- 三张表统一保留：
+  - `user_id`
+  - `status`
+  - `create_time`
+  - `update_time`
+  - `is_delete`
+- `knowledge_document` 通过 `knowledge_base_id` 关联知识库
+- `knowledge_segment` 通过 `document_id` 关联知识文档
+- `knowledge_segment.content` 使用 `MEDIUMTEXT`
+- `knowledge_segment.metadata` 使用 `TEXT`
+- `knowledge_segment.vector_id` 使用 `VARCHAR(128)`
+- 已补充索引：
+  - `knowledge_base.idx_user_id_update_time`
+  - `knowledge_document.idx_base_id_update_time`
+  - `knowledge_document.idx_user_id_update_time`
+  - `knowledge_segment.idx_document_id_segment_index`
+  - `knowledge_segment.idx_base_id_document_id`
+- 新增 Entity：
+  - `KnowledgeBase`
+  - `KnowledgeDocument`
+  - `KnowledgeSegment`
+- 新增 Mapper：
+  - `KnowledgeBaseMapper`
+  - `KnowledgeDocumentMapper`
+  - `KnowledgeSegmentMapper`
+- 本 Step 仅完成知识库相关表结构、Entity、Mapper，未新增接口，未实现文档上传、切片解析、embedding 或向量化检索逻辑
