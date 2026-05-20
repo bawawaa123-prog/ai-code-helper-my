@@ -27,7 +27,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     private static final int LAST_MESSAGE_MAX_LENGTH = 512;
 
-    private static final String SESSION_LIST_CACHE_KEY_PREFIX = "chat:sessions:";
+    private static final String SESSION_LIST_CACHE_KEY_PREFIX = "chat:sessions:v2:";
 
     private static final Duration SESSION_LIST_CACHE_TTL = Duration.ofMinutes(30);
 
@@ -62,7 +62,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         List<ChatSessionVO> sessionList = lambdaQuery()
                 .eq(ChatSession::getUserId, userId)
                 .eq(ChatSession::getIsDelete, 0)
-                .orderByDesc(ChatSession::getUpdateTime)
+                .orderByDesc(ChatSession::getCreateTime)
                 .list()
                 .stream()
                 .map(this::toChatSessionVO)

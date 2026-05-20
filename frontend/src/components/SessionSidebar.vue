@@ -2,6 +2,10 @@
 import { computed } from "vue";
 
 const props = defineProps({
+  collapsed: {
+    type: Boolean,
+    default: false
+  },
   sessions: {
     type: Array,
     default: () => []
@@ -20,16 +24,15 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits([
-  "create-session",
-  "select-session",
-  "rename-session",
-  "delete-session"
-]);
+defineEmits(["toggle-collapse", "create-session", "select-session", "rename-session", "delete-session"]);
 
 const hasSessions = computed(() => props.sessions.length > 0);
 
 function formatMeta(session) {
+  if (session.isDraft) {
+    return "未保存";
+  }
+
   if (session.lastMessage) {
     return session.lastMessage;
   }
@@ -53,11 +56,22 @@ function formatMeta(session) {
 </script>
 
 <template>
-  <aside class="session-sidebar">
+  <aside class="session-sidebar" :class="{ collapsed }">
     <div class="session-sidebar-head">
-      <div>
-        <p class="session-sidebar-kicker">Workspace</p>
-        <h2>{{ currentUserName || "我的会话" }}</h2>
+      <div class="session-sidebar-brand">
+        <button
+          class="sidebar-collapse-button"
+          type="button"
+          :aria-expanded="!collapsed"
+          @click="$emit('toggle-collapse')"
+        >
+          {{ collapsed ? ">" : "<" }}
+        </button>
+
+        <div v-if="!collapsed">
+          <p class="session-sidebar-kicker">Workspace</p>
+          <h2>{{ currentUserName || "我的会话" }}</h2>
+        </div>
       </div>
 
       <button
@@ -66,13 +80,11 @@ function formatMeta(session) {
         :disabled="loading"
         @click="$emit('create-session')"
       >
-        新建会话
+        {{ collapsed ? "+" : "新建会话" }}
       </button>
     </div>
 
-    <div v-if="loading" class="session-sidebar-state">
-      正在加载会话...
-    </div>
+    <div v-if="loading" class="session-sidebar-state">正在加载会话...</div>
 
     <div v-else-if="!hasSessions" class="session-sidebar-state">
       <strong>还没有会话</strong>
@@ -92,12 +104,17 @@ function formatMeta(session) {
           @click="$emit('select-session', session.id)"
         >
           <div class="session-item-main">
-            <strong class="session-item-title">{{ session.title || "新会话" }}</strong>
-            <span class="session-item-meta">{{ formatMeta(session) }}</span>
+            <strong v-if="!collapsed" class="session-item-title" :title="session.title || '新会话'">
+              {{ session.title || "新会话" }}
+            </strong>
+            <span v-if="!collapsed" class="session-item-meta" :title="formatMeta(session)">
+              {{ formatMeta(session) }}
+            </span>
+            <span v-else class="session-item-dot"></span>
           </div>
         </button>
 
-        <div class="session-item-actions">
+        <div v-if="!collapsed" class="session-item-actions">
           <button
             class="session-action-button"
             type="button"

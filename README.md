@@ -20,6 +20,12 @@
 
 ## 运行
 
+### 启动Redis：
+
+打开docker desktop
+
+powershell -ExecutionPolicy Bypass -File .\start-redis-dev.ps1
+
 ### 前端：
 
 cd E:\Bawa_Data\Xiangmu\ai-code-helper-my\frontend
@@ -29,3 +35,8 @@ npm.cmd run dev
 
 cd E:\Bawa_Data\Xiangmu\ai-code-helper-my
 .\mvnw.cmd spring-boot:run
+
+## 测试与验收
+
+- 手动验收清单：`docs/test-checklist.md`
+- 接口测试示例：`docs/api-test.md`

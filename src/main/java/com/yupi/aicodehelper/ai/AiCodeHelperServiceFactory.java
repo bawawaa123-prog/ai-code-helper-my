@@ -1,7 +1,5 @@
 package com.yupi.aicodehelper.ai;
 
-
-import com.yupi.aicodehelper.ai.tools.InterviewQuestionTool;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -89,8 +87,7 @@ public class AiCodeHelperServiceFactory {
         var builder = AiServices.builder(AiCodeHelperService.class)
                 .chatModel(myQwenChatModel)
                 .streamingChatModel(qwenStreamingChatModel)
-                .chatMemoryProvider(memoryId -> getOrCreateMemory(String.valueOf(memoryId)))
-                .tools(new InterviewQuestionTool());
+                .chatMemoryProvider(memoryId -> getOrCreateMemory(String.valueOf(memoryId)));
         if (contentRetriever != null) {
             builder.contentRetriever(contentRetriever);
         }

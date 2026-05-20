@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 21`
+当前已完成到：`Step 23`
 
 ## Step 1
 
@@ -283,18 +283,60 @@
 - TTL：
   - 30 分钟
 
-## 补充说明
+## Step 22
 
-当前项目还做过一些运行期修复：
+目标：
+- 从 MySQL 恢复历史上下文，让用户重新打开历史会话后，AI 能参考最近聊天内容继续对话
 
-- 修复过 MyBatis Plus 更新 `chat_session` 时生成空 `UPDATE ... WHERE ...` 的问题
-- 修复过 Redis 默认 JDK 序列化导致的 `Cannot serialize` 问题，现已统一切换为 JSON 序列化
-- 对 Redis 旧格式脏缓存增加了读取失败自动删除并回源的自愈处理
+结果：
+- `ChatMessageService` 新增最近历史消息查询方法：
+  - `listRecentMessages(Long userId, Long sessionId, int limit)`
+- 查询规则：
+  - 只查询当前 `userId + sessionId`
+  - 只查询 `isDelete = 0`
+  - 只查询 `status = "success"`
+  - 只保留 `role = user / assistant`
+  - 按 `createTime` 倒序取最近 10 条，再按正序返回
+- `AiCodeHelperServiceFactory` 改造为按 `memoryKey` 复用 `ChatMemory`
+- 新增能力：
+  - `getOrCreateMemory(String memoryKey)`
+  - `reloadMemory(String memoryKey, List<ChatMessage> messages)`
+- `POST /api/ai/chat/stream` 调整为：
+  - 先根据 `userId:sessionId` 恢复最近历史消息到 Memory
+  - 再保存本轮 user 消息
+  - 再调用 AI 流式回复
+- 保持 `memoryKey` 规则不变：
+  - `userId:sessionId`
+- 避免了本轮用户消息重复进入 Memory
+- 后续运行期修复：
+  - 为兼容 DashScope 工具消息协议，当前聊天主链路已移除 `InterviewQuestionTool` 绑定，避免恢复历史上下文后出现 duplicated message 警告
 
-## 新会话建议
+## Step 23
 
-如果你准备继续下一步开发，建议新的 Codex 会话先读取：
+目标：
+- 补充项目测试说明和手动验收清单，方便验证用户体系、多会话、消息持久化、Redis 缓存和历史上下文恢复
 
-1. `CODEX_PROJECT_GUIDE.md`
-2. `STEP_PROGRESS_SUMMARY.md`
-
+结果：
+- 新增文档：
+  - `docs/test-checklist.md`
+  - `docs/api-test.md`
+- `test-checklist.md` 覆盖模块：
+  - 用户模块
+  - 会话模块
+  - 消息模块
+  - AI 聊天模块
+  - Redis 模块
+  - 前端模块
+- `api-test.md` 覆盖接口：
+  - `POST /api/user/register`
+  - `POST /api/user/login`
+  - `GET /api/user/me`
+  - `POST /api/chat/session`
+  - `GET /api/chat/session/list`
+  - `GET /api/chat/session/{sessionId}/messages`
+  - `PUT /api/chat/session/{sessionId}`
+  - `DELETE /api/chat/session/{sessionId}`
+  - `POST /api/ai/chat/stream`
+- 补充了 `Authorization: Bearer <token>` 请求头示例
+- 补充了 Windows PowerShell 下的 `Invoke-RestMethod` / `curl.exe` 示例
+- `README.md` 新增“测试与验收”入口，指向上述两个文档
