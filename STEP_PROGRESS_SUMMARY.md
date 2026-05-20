@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 28`
+当前已完成到：`Step 29`
 
 ## Step 1
 
@@ -474,3 +474,36 @@
   - `KnowledgeDocumentMapper`
   - `KnowledgeSegmentMapper`
 - 本 Step 仅完成知识库相关表结构、Entity、Mapper，未新增接口，未实现文档上传、切片解析、embedding 或向量化检索逻辑
+
+## Step 29
+
+目标：
+- 实现知识库基础管理接口，支持当前登录用户创建、查询、重命名和删除自己的知识库
+
+结果：
+- 已检查并确认 Step 28 内容完整：
+  - `init.sql` 中已存在 `knowledge_base`、`knowledge_document`、`knowledge_segment`
+  - `KnowledgeBase`、`KnowledgeDocument`、`KnowledgeSegment` Entity 已存在
+  - `KnowledgeBaseMapper`、`KnowledgeDocumentMapper`、`KnowledgeSegmentMapper` 已存在
+  - `STEP_PROGRESS_SUMMARY.md` 已记录 Step 28
+- 新增 DTO：
+  - `KnowledgeBaseCreateRequest`
+  - `KnowledgeBaseUpdateRequest`
+- 新增 VO：
+  - `KnowledgeBaseVO`
+- 新增 Service：
+  - `KnowledgeBaseService`
+  - `KnowledgeBaseServiceImpl`
+- 新增 Controller：
+  - `KnowledgeBaseController`
+- 新增接口：
+  - `POST /api/knowledge/base`
+  - `GET /api/knowledge/base/list`
+  - `PUT /api/knowledge/base/{knowledgeBaseId}`
+  - `DELETE /api/knowledge/base/{knowledgeBaseId}`
+- 所有知识库操作均按 `userId` 隔离：
+  - 只允许当前登录用户操作自己的知识库
+  - 查询列表仅返回当前用户且未删除的数据
+  - 删除采用逻辑删除
+  - 列表按 `updateTime` 倒序返回
+- 本 Step 仅实现知识库基础管理接口，未实现文档上传、文档解析、切片处理、embedding、向量化检索和聊天接入
