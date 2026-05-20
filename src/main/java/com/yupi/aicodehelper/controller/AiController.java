@@ -1,6 +1,9 @@
 package com.yupi.aicodehelper.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.aicodehelper.ai.AiCodeHelperServiceFactory;
+import com.yupi.aicodehelper.ai.rag.RagQueryService;
 import com.yupi.aicodehelper.ai.rag.RagProperties;
 import com.yupi.aicodehelper.auth.LoginUserHolder;
 import com.yupi.aicodehelper.common.ErrorCode;
@@ -25,7 +28,9 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CancellationException;
 
 @Slf4j
@@ -34,9 +39,15 @@ import java.util.concurrent.CancellationException;
 public class AiController {
 
     private static final int HISTORY_MESSAGE_LIMIT = 10;
+    private static final String SSE_EVENT_MESSAGE = "message";
+    private static final String SSE_EVENT_SOURCES = "sources";
+    private static final String SSE_EVENT_DONE = "done";
 
     @Resource
     private AiCodeHelperServiceFactory aiCodeHelperServiceFactory;
+
+    @Resource
+    private RagQueryService ragQueryService;
 
     @Resource
     private RagProperties ragProperties;
@@ -46,6 +57,9 @@ public class AiController {
 
     @Resource
     private ChatMessageService chatMessageService;
+
+    @Resource
+    private ObjectMapper objectMapper;
 
     @GetMapping("/chat")
     public Flux<ServerSentEvent<String>> chat(int memoryId, String message,
@@ -88,17 +102,17 @@ public class AiController {
         StringBuilder assistantReplyBuilder = new StringBuilder();
         Long sessionId = request.getSessionId();
         Long userId = loginUser.getId();
-        return aiCodeHelperServiceFactory.chatStream(memoryKey, message, finalUseRag)
+        AtomicBoolean clientDisconnected = new AtomicBoolean(false);
+        Flux<ServerSentEvent<String>> messageFlux = aiCodeHelperServiceFactory.chatStream(memoryKey, message, finalUseRag)
                 .doOnNext(assistantReplyBuilder::append)
-                .map(chunk -> ServerSentEvent.<String>builder()
-                        .data(chunk)
-                        .build())
+                .map(chunk -> buildEvent(SSE_EVENT_MESSAGE, chunk))
                 .doOnComplete(() -> {
                     String assistantReply = assistantReplyBuilder.toString();
                     chatMessageService.saveAssistantMessage(userId, sessionId, assistantReply, finalUseRag, "success");
                     chatSessionService.updateAfterChat(userId, sessionId, assistantReply);
                 })
                 .onErrorResume(this::isClientDisconnectError, error -> {
+                    clientDisconnected.set(true);
                     log.info("SSE chat stream closed by client: sessionId={}, userId={}", sessionId, userId);
                     return Flux.empty();
                 })
@@ -109,6 +123,44 @@ public class AiController {
                         chatSessionService.updateAfterChat(userId, sessionId, assistantReply);
                     }
                 });
+        return messageFlux.concatWith(Flux.defer(() -> buildTailEvents(finalUseRag, message, clientDisconnected.get())));
+    }
+
+    private Flux<ServerSentEvent<String>> buildTailEvents(boolean finalUseRag, String message, boolean clientDisconnected) {
+        if (clientDisconnected) {
+            return Flux.empty();
+        }
+        if (!finalUseRag) {
+            return Flux.just(buildEvent(SSE_EVENT_DONE, "done"));
+        }
+        String sourcesJson = serializeSources(message);
+        return Flux.just(
+                buildEvent(SSE_EVENT_SOURCES, sourcesJson),
+                buildEvent(SSE_EVENT_DONE, "done")
+        );
+    }
+
+    private String serializeSources(String message) {
+        try {
+            return objectMapper.writeValueAsString(ragQueryService.querySources(message));
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize RAG sources, return empty list. message={}", message, e);
+            return "[]";
+        } catch (Exception e) {
+            log.warn("Failed to query RAG sources, return empty list. message={}", message, e);
+            try {
+                return objectMapper.writeValueAsString(Collections.emptyList());
+            } catch (JsonProcessingException jsonProcessingException) {
+                return "[]";
+            }
+        }
+    }
+
+    private ServerSentEvent<String> buildEvent(String event, String data) {
+        return ServerSentEvent.<String>builder()
+                .event(event)
+                .data(data)
+                .build();
     }
 
     private boolean isClientDisconnectError(Throwable throwable) {

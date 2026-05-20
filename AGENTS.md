@@ -138,7 +138,7 @@
 
 `AGENTS.md` 不记录当前已经完成了哪些功能，也不维护 step 明细。
 
-每完成一个新的 step 后，询问用户是否更新 `STEP_PROGRESS_SUMMARY.md`，是否需要追加本次 step 的内容。推荐格式：
+如果是step的步骤，那么每完成一个新的 step 后，更新 `STEP_PROGRESS_SUMMARY.md`，追加本次 step 的内容。推荐格式：
 
 ```md
 ## Step X

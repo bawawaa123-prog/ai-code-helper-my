@@ -3,6 +3,7 @@ import { getStoredToken } from "../utils/request";
 
 function parseEventBlock(block) {
   const lines = block.split("\n");
+  let event = "";
   const dataLines = [];
 
   for (const rawLine of lines) {
@@ -12,15 +13,64 @@ function parseEventBlock(block) {
       continue;
     }
 
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trimStart();
+      continue;
+    }
+
     if (line.startsWith("data:")) {
       dataLines.push(line.slice(5).trimStart());
     }
   }
 
-  return dataLines.join("\n");
+  return {
+    event,
+    data: dataLines.join("\n")
+  };
 }
 
-async function consumeStream(reader, onChunk) {
+function normalizeStreamHandlers(handlersOrOnChunk) {
+  if (typeof handlersOrOnChunk === "function") {
+    return {
+      onChunk: handlersOrOnChunk
+    };
+  }
+  return handlersOrOnChunk || {};
+}
+
+function parseSourcesData(data) {
+  if (!data) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+function dispatchEventBlock(block, handlers) {
+  const { event, data } = parseEventBlock(block);
+  const eventType = event || "message";
+
+  if (eventType === "sources") {
+    handlers.onSources?.(parseSourcesData(data));
+    return;
+  }
+
+  if (eventType === "done") {
+    handlers.onDone?.(data);
+    return;
+  }
+
+  if (data) {
+    handlers.onChunk?.(data);
+  }
+}
+
+async function consumeStream(reader, handlersOrOnChunk) {
+  const handlers = normalizeStreamHandlers(handlersOrOnChunk);
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
@@ -32,16 +82,12 @@ async function consumeStream(reader, onChunk) {
     buffer = blocks.pop() || "";
 
     for (const block of blocks) {
-      const data = parseEventBlock(block);
-      if (data) {
-        onChunk(data);
-      }
+      dispatchEventBlock(block, handlers);
     }
 
     if (done) {
-      const finalData = parseEventBlock(buffer);
-      if (finalData) {
-        onChunk(finalData);
+      if (buffer) {
+        dispatchEventBlock(buffer, handlers);
       }
       break;
     }
@@ -62,7 +108,7 @@ function buildStreamHeaders(extraHeaders = {}) {
   return headers;
 }
 
-async function handleStreamResponse(response, onChunk) {
+async function handleStreamResponse(response, handlersOrOnChunk) {
   if (!response.ok) {
     throw new Error(`请求失败：${response.status}`);
   }
@@ -72,10 +118,10 @@ async function handleStreamResponse(response, onChunk) {
   }
 
   const reader = response.body.getReader();
-  await consumeStream(reader, onChunk);
+  await consumeStream(reader, handlersOrOnChunk);
 }
 
-async function streamChatByMemoryId({ memoryId, message, useRag, signal, onChunk }) {
+async function streamChatByMemoryId({ memoryId, message, useRag, signal, onChunk, onSources, onDone }) {
   const params = {
     memoryId,
     message
@@ -96,10 +142,14 @@ async function streamChatByMemoryId({ memoryId, message, useRag, signal, onChunk
     signal
   });
 
-  await handleStreamResponse(response, onChunk);
+  await handleStreamResponse(response, {
+    onChunk,
+    onSources,
+    onDone
+  });
 }
 
-async function streamChatBySession({ sessionId, message, useRag, signal, onChunk }) {
+async function streamChatBySession({ sessionId, message, useRag, signal, onChunk, onSources, onDone }) {
   const response = await fetch("/api/ai/chat/stream", {
     method: "POST",
     headers: buildStreamHeaders({
@@ -113,7 +163,11 @@ async function streamChatBySession({ sessionId, message, useRag, signal, onChunk
     signal
   });
 
-  await handleStreamResponse(response, onChunk);
+  await handleStreamResponse(response, {
+    onChunk,
+    onSources,
+    onDone
+  });
 }
 
 export async function streamChat(options) {

@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 23`
+当前已完成到：`Step 25`
 
 ## Step 1
 
@@ -340,3 +340,47 @@
 - 补充了 `Authorization: Bearer <token>` 请求头示例
 - 补充了 Windows PowerShell 下的 `Invoke-RestMethod` / `curl.exe` 示例
 - `README.md` 新增“测试与验收”入口，指向上述两个文档
+
+## Step 24
+
+目标：
+- 封装当前 RAG 检索来源结果，为后续“回答下方展示参考来源引用”做准备
+
+结果：
+- 新增 `src/main/java/com/yupi/aicodehelper/model/vo/RagSourceVO.java`
+- `RagSourceVO` 包含字段：
+  - `sourceName`
+  - `content`
+  - `score`
+  - `metadata`
+- 新增 `src/main/java/com/yupi/aicodehelper/ai/rag/RagQueryService.java`
+- `RagQueryService` 复用当前 `RagConfig` 提供的 `ContentRetriever`，接收用户问题后执行检索，并返回 `List<RagSourceVO>`
+- 检索结果映射时会优先从 metadata 中提取来源文件名，并补充相似度分数
+- 当 RAG 检索不到内容或检索异常时，返回空列表，不影响现有聊天主流程
+- `RagConfig` 仅补充了来源 metadata key 常量复用，未改变现有 RAG 检索参数、聊天接口或 SSE 行为
+- 后端已执行 `mvn -DskipTests compile`，结果为 `BUILD SUCCESS`
+
+## Step 25
+
+目标：
+- 扩展 RAG 聊天 SSE 事件协议，在不展示前端来源卡片的前提下，让后端可以在 RAG 回答结束后返回 `sources` 事件
+
+结果：
+- 修改 `src/main/java/com/yupi/aicodehelper/controller/AiController.java`
+- `POST /api/ai/chat/stream` 的普通文本 chunk 显式使用 `event: message`
+- 当 `finalUseRag = true` 且本轮流式回复正常完成后，后端会追加返回：
+  - `event: sources`
+  - `data: List<RagSourceVO>` 的 JSON
+- 在流结束时追加返回：
+  - `event: done`
+  - `data: done`
+- 客户端主动停止生成时，不强行发送 `sources` 或 `done`
+- `AiController` 接入 `RagQueryService`，仅在 RAG 模式下用本轮用户 `message` 查询来源
+- 检索失败或为空时，`sources` 返回空数组，不影响 assistant 消息持久化和会话摘要更新逻辑
+- 修改 `frontend/src/api/chat.js`
+- 前端底层 SSE 解析已兼容 `message`、`sources`、`done` 事件：
+  - `message` 或无 `event` 时继续走原有 `onChunk(data)`
+  - `sources` 时仅在调用方传入 `onSources` 后回调，不会被拼接到回答文本
+  - `done` 时仅在调用方传入 `onDone` 后回调
+- 当前 `App.vue` 未修改，现有聊天页面行为保持不变
+- 已更新 `STEP_PROGRESS_SUMMARY.md` 到 Step 25
