@@ -19,20 +19,22 @@ import java.util.List;
 @Configuration
 public class RagConfig {
 
+    static final String SOURCE_FILE_NAME_METADATA_KEY = "file_name";
+
     @Resource
     private EmbeddingModel qwenEmbeddingModel;
 
     @Resource
-    private EmbeddingStore<TextSegment>embeddingStore;
+    private EmbeddingStore<TextSegment> embeddingStore;
 
     @Bean
     @Lazy
-    public ContentRetriever contentRetriever(){
+    public ContentRetriever contentRetriever() {
         List<Document> documents=FileSystemDocumentLoader.loadDocuments("src/main/resources/docs");
         DocumentByParagraphSplitter documentByParagraphSplitter = new DocumentByParagraphSplitter(1000,200);
         EmbeddingStoreIngestor ingestor=EmbeddingStoreIngestor.builder()
                 .documentSplitter(documentByParagraphSplitter)
-                .textSegmentTransformer(textSegment -> textSegment.from(textSegment.metadata().getString("file_name")+
+                .textSegmentTransformer(textSegment -> textSegment.from(textSegment.metadata().getString(SOURCE_FILE_NAME_METADATA_KEY)+
                         "\n"+textSegment.text(), textSegment.metadata()))
                 .embeddingModel(qwenEmbeddingModel)
                 .embeddingStore(embeddingStore)
