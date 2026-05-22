@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 29`
+当前已完成到：`Step 30`
 
 ## Step 1
 
@@ -507,3 +507,39 @@
   - 删除采用逻辑删除
   - 列表按 `updateTime` 倒序返回
 - 本 Step 仅实现知识库基础管理接口，未实现文档上传、文档解析、切片处理、embedding、向量化检索和聊天接入
+
+## Step 30
+
+目标：
+- 实现 Markdown / TXT 文档上传接口，将文档原始文件保存到本地，并把文档元信息写入 `knowledge_document` 表
+
+结果：
+- 新增 VO：
+  - `KnowledgeDocumentVO`
+- 新增 Service：
+  - `KnowledgeDocumentService`
+  - `KnowledgeDocumentServiceImpl`
+- 新增 Controller：
+  - `KnowledgeDocumentController`
+- 新增接口：
+  - `POST /api/knowledge/base/{knowledgeBaseId}/document/upload`
+  - `GET /api/knowledge/base/{knowledgeBaseId}/document/list`
+- 上传文件仅允许：
+  - `.md`
+  - `.txt`
+- 单文件大小限制为 5MB
+- 原始文件会保存到本地目录：
+  - `data/knowledge/{userId}/{knowledgeBaseId}/`
+- 实际保存文件名使用 UUID 生成，避免同名覆盖和路径穿越
+- `knowledge_document` 入库字段包括：
+  - `userId`
+  - `knowledgeBaseId`
+  - `fileName`
+  - `fileType`
+  - `filePath`
+  - `fileSize`
+  - `segmentCount = 0`
+  - `status = 1`
+- 查询文档列表只返回当前用户、当前知识库、未删除的文档，并按 `updateTime` 倒序
+- 本 Step 仅实现 Markdown / TXT 文档上传、原始文件保存和文档列表查询
+- 未实现文档解析、切片、embedding、向量化、聊天接入和前端页面改动
