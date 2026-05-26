@@ -5,8 +5,10 @@ import com.yupi.aicodehelper.common.ErrorCode;
 import com.yupi.aicodehelper.exception.BusinessException;
 import com.yupi.aicodehelper.mapper.KnowledgeBaseMapper;
 import com.yupi.aicodehelper.mapper.KnowledgeDocumentMapper;
+import com.yupi.aicodehelper.mapper.KnowledgeSegmentMapper;
 import com.yupi.aicodehelper.model.entity.KnowledgeBase;
 import com.yupi.aicodehelper.model.entity.KnowledgeDocument;
+import com.yupi.aicodehelper.model.entity.KnowledgeSegment;
 import com.yupi.aicodehelper.model.vo.KnowledgeDocumentVO;
 import com.yupi.aicodehelper.service.KnowledgeDocumentService;
 import java.io.IOException;
@@ -30,9 +32,12 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     private static final Path BASE_UPLOAD_DIR = Paths.get("data", "knowledge");
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final KnowledgeSegmentMapper knowledgeSegmentMapper;
 
-    public KnowledgeDocumentServiceImpl(KnowledgeBaseMapper knowledgeBaseMapper) {
+    public KnowledgeDocumentServiceImpl(KnowledgeBaseMapper knowledgeBaseMapper,
+                                        KnowledgeSegmentMapper knowledgeSegmentMapper) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
+        this.knowledgeSegmentMapper = knowledgeSegmentMapper;
     }
 
     @Override
@@ -93,6 +98,41 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
                 .toList();
     }
 
+    @Override
+    public void deleteDocument(Long userId, Long knowledgeBaseId, Long documentId) {
+        validateUserId(userId);
+        validateKnowledgeBaseId(knowledgeBaseId);
+        validateDocumentId(documentId);
+
+        KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectById(knowledgeBaseId);
+        validateOwnedKnowledgeBase(userId, knowledgeBase);
+
+        KnowledgeDocument knowledgeDocument = baseMapper.selectById(documentId);
+        validateOwnedKnowledgeDocument(userId, knowledgeBaseId, knowledgeDocument);
+
+        boolean documentDeleted = lambdaUpdate()
+                .eq(KnowledgeDocument::getId, documentId)
+                .eq(KnowledgeDocument::getUserId, userId)
+                .eq(KnowledgeDocument::getKnowledgeBaseId, knowledgeBaseId)
+                .eq(KnowledgeDocument::getIsDelete, 0)
+                .set(KnowledgeDocument::getIsDelete, 1)
+                .update();
+        if (!documentDeleted) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除文档失败");
+        }
+
+        KnowledgeSegment knowledgeSegment = new KnowledgeSegment();
+        knowledgeSegment.setIsDelete(1);
+        knowledgeSegmentMapper.update(
+                knowledgeSegment,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KnowledgeSegment>()
+                        .eq(KnowledgeSegment::getUserId, userId)
+                        .eq(KnowledgeSegment::getKnowledgeBaseId, knowledgeBaseId)
+                        .eq(KnowledgeSegment::getDocumentId, documentId)
+                        .eq(KnowledgeSegment::getIsDelete, 0)
+        );
+    }
+
     private void validateUserId(Long userId) {
         if (userId == null || userId <= 0) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "用户未登录");
@@ -105,12 +145,30 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         }
     }
 
+    private void validateDocumentId(Long documentId) {
+        if (documentId == null || documentId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文档 id 不能为空");
+        }
+    }
+
     private void validateOwnedKnowledgeBase(Long userId, KnowledgeBase knowledgeBase) {
         if (knowledgeBase == null || knowledgeBase.getIsDelete() != null && knowledgeBase.getIsDelete() == 1) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "知识库不存在");
         }
         if (!knowledgeBase.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该知识库");
+        }
+    }
+
+    private void validateOwnedKnowledgeDocument(Long userId, Long knowledgeBaseId, KnowledgeDocument knowledgeDocument) {
+        if (knowledgeDocument == null || knowledgeDocument.getIsDelete() != null && knowledgeDocument.getIsDelete() == 1) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "文档不存在");
+        }
+        if (!knowledgeDocument.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限删除该文档");
+        }
+        if (!knowledgeDocument.getKnowledgeBaseId().equals(knowledgeBaseId)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文档不属于当前知识库");
         }
     }
 

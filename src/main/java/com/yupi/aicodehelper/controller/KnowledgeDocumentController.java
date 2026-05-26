@@ -11,6 +11,7 @@ import com.yupi.aicodehelper.service.KnowledgeSegmentService;
 import com.yupi.aicodehelper.service.KnowledgeVectorService;
 import jakarta.annotation.Resource;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,13 @@ public class KnowledgeDocumentController {
         List<KnowledgeDocumentVO> documentList =
                 knowledgeDocumentService.listDocuments(loginUser.getId(), knowledgeBaseId);
         return ResultUtils.success(documentList);
+    }
+
+    @DeleteMapping("/{documentId}")
+    public BaseResponse<Boolean> deleteDocument(@PathVariable Long knowledgeBaseId, @PathVariable Long documentId) {
+        User loginUser = LoginUserHolder.get();
+        knowledgeDocumentService.deleteDocument(loginUser.getId(), knowledgeBaseId, documentId);
+        return ResultUtils.success(true);
     }
 
     @PostMapping("/{documentId}/parse")

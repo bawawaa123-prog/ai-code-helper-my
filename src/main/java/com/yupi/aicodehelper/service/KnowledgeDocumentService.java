@@ -11,4 +11,6 @@ public interface KnowledgeDocumentService extends IService<KnowledgeDocument> {
     Long uploadDocument(Long userId, Long knowledgeBaseId, MultipartFile file);
 
     List<KnowledgeDocumentVO> listDocuments(Long userId, Long knowledgeBaseId);
+
+    void deleteDocument(Long userId, Long knowledgeBaseId, Long documentId);
 }

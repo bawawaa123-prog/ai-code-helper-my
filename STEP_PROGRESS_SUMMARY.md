@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 37`
+当前已完成到：`Step 38`
 
 ## Step 1
 
@@ -906,3 +906,64 @@
 - 本 Step 未实现切片详情页面
 - 本 Step 未实现文档搜索页面
 - 本 Step 未实现 Step 38
+
+## Step 38
+
+目标：
+- 实现知识库文档删除功能
+- 支持用户删除自己知识库下的文档
+- 在前端文档列表中提供删除入口，并保持 Step 37 已有上传、解析、向量化能力不变
+
+修改文件：
+- `src/main/java/com/yupi/aicodehelper/service/KnowledgeDocumentService.java`：新增文档删除 Service 方法
+- `src/main/java/com/yupi/aicodehelper/service/impl/KnowledgeDocumentServiceImpl.java`：补充文档归属校验、文档逻辑删除和关联切片逻辑删除
+- `src/main/java/com/yupi/aicodehelper/controller/KnowledgeDocumentController.java`：新增删除文档接口
+- `frontend/src/api/knowledge.js`：新增前端删除文档 API
+- `frontend/src/App.vue`：新增文档删除按钮、二次确认、删除请求和列表刷新逻辑
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 38 完成记录
+
+结果：
+- `KnowledgeDocumentService` 新增方法：
+  - `void deleteDocument(Long userId, Long knowledgeBaseId, Long documentId)`
+- 后端新增接口：
+  - `DELETE /api/knowledge/base/{knowledgeBaseId}/document/{documentId}`
+- 删除流程包含校验：
+  - `userId` 必须有效
+  - `knowledgeBaseId` 必须有效
+  - `documentId` 必须有效
+  - 知识库必须存在、未删除且属于当前用户
+  - 文档必须存在、未删除、属于当前用户且属于当前知识库
+- 删除文档时会执行逻辑删除：
+  - `knowledge_document.is_delete = 1`
+  - 当前 `documentId` 下未删除的 `knowledge_segment.is_delete = 1`
+- 保持不变：
+  - 不物理删除本地文件
+  - 不删除 EmbeddingStore 中旧向量
+- 前端 `knowledge.js` 新增：
+  - `deleteKnowledgeDocument(knowledgeBaseId, documentId)`
+- 前端文档列表每条记录新增“删除”按钮：
+  - 删除前使用 `window.confirm` 二次确认
+  - 删除成功后刷新当前知识库文档列表
+  - 删除失败时显示 `documentError`
+  - 删除中会复用 `documentActionLoading` 禁用按钮，避免重复点击
+  - 删除成功后会清空已选上传文件
+- 保持不变：
+  - 上传、解析、向量化按钮逻辑不变
+  - 聊天发送 `knowledgeBaseId` 逻辑不变
+  - 来源卡片展示逻辑不变
+
+验证：
+- 已执行后端编译：
+  - `mvn -DskipTests compile`
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 未执行真实 `curl` 删除联调
+- 未执行真实页面点击删除联调
+
+遗留问题：
+- 本 Step 未实现物理文件删除
+- 本 Step 未实现向量库旧向量删除
+- 本 Step 未实现 PDF 上传或 PDF 解析
+- 本 Step 未实现切片详情页面
+- 本 Step 未实现文档搜索页面
+- 本 Step 未实现 Step 39

@@ -5,6 +5,7 @@ import { getCurrentUser, logout } from "@/api/auth";
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
+  deleteKnowledgeDocument,
   getKnowledgeBaseList,
   getKnowledgeDocumentList,
   parseKnowledgeDocument,
@@ -563,6 +564,31 @@ async function handleVectorizeKnowledgeDocument(document) {
     await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
   } catch (error) {
     documentError.value = error.message || "向量化文档失败";
+  } finally {
+    documentActionLoading.value = "";
+  }
+}
+
+async function handleDeleteKnowledgeDocument(document) {
+  if (!selectedKnowledgeBaseId.value || !document?.id) {
+    return;
+  }
+
+  const confirmed = window.confirm(`确认删除文档“${document.fileName || "未命名文档"}”吗？`);
+  if (!confirmed) {
+    return;
+  }
+
+  const actionKey = `delete-${document.id}`;
+  documentActionLoading.value = actionKey;
+  documentError.value = "";
+
+  try {
+    await deleteKnowledgeDocument(selectedKnowledgeBaseId.value, document.id);
+    clearSelectedUploadFile();
+    await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
+  } catch (error) {
+    documentError.value = error.message || "删除文档失败";
   } finally {
     documentActionLoading.value = "";
   }
@@ -1394,9 +1420,19 @@ onBeforeUnmount(() => {
                               {{
                                 isDocumentActionRunning(`vectorize-${document.id}`)
                                   ? "向量化中..."
-                                  : document.status === 3
+                                : document.status === 3
                                     ? "重新向量化"
                                     : "向量化"
+                              }}
+                            </button>
+                            <button
+                              class="knowledge-danger-button"
+                              type="button"
+                              :disabled="isDocumentActionDisabled"
+                              @click="handleDeleteKnowledgeDocument(document)"
+                            >
+                              {{
+                                isDocumentActionRunning(`delete-${document.id}`) ? "删除中..." : "删除"
                               }}
                             </button>
                           </div>

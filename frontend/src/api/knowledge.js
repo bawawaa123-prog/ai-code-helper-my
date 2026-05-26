@@ -60,3 +60,7 @@ export function parseKnowledgeDocument(knowledgeBaseId, documentId) {
 export function vectorizeKnowledgeDocument(knowledgeBaseId, documentId) {
   return request.post(`/api/knowledge/base/${knowledgeBaseId}/document/${documentId}/vectorize`);
 }
+
+export function deleteKnowledgeDocument(knowledgeBaseId, documentId) {
+  return request.delete(`/api/knowledge/base/${knowledgeBaseId}/document/${documentId}`);
+}
