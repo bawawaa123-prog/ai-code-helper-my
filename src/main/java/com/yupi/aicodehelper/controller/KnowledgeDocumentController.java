@@ -5,7 +5,9 @@ import com.yupi.aicodehelper.common.BaseResponse;
 import com.yupi.aicodehelper.common.ResultUtils;
 import com.yupi.aicodehelper.model.entity.User;
 import com.yupi.aicodehelper.model.vo.KnowledgeDocumentVO;
+import com.yupi.aicodehelper.model.vo.KnowledgeSegmentVO;
 import com.yupi.aicodehelper.service.KnowledgeDocumentService;
+import com.yupi.aicodehelper.service.KnowledgeSegmentService;
 import jakarta.annotation.Resource;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +25,9 @@ public class KnowledgeDocumentController {
     @Resource
     private KnowledgeDocumentService knowledgeDocumentService;
 
+    @Resource
+    private KnowledgeSegmentService knowledgeSegmentService;
+
     @PostMapping("/upload")
     public BaseResponse<Long> uploadDocument(@PathVariable Long knowledgeBaseId,
                                              @RequestParam("file") MultipartFile file) {
@@ -37,5 +42,22 @@ public class KnowledgeDocumentController {
         List<KnowledgeDocumentVO> documentList =
                 knowledgeDocumentService.listDocuments(loginUser.getId(), knowledgeBaseId);
         return ResultUtils.success(documentList);
+    }
+
+    @PostMapping("/{documentId}/parse")
+    public BaseResponse<Integer> parseDocument(@PathVariable Long knowledgeBaseId, @PathVariable Long documentId) {
+        User loginUser = LoginUserHolder.get();
+        Integer segmentCount =
+                knowledgeSegmentService.parseAndSaveSegments(loginUser.getId(), knowledgeBaseId, documentId);
+        return ResultUtils.success(segmentCount);
+    }
+
+    @GetMapping("/{documentId}/segment/list")
+    public BaseResponse<List<KnowledgeSegmentVO>> listSegments(@PathVariable Long knowledgeBaseId,
+                                                               @PathVariable Long documentId) {
+        User loginUser = LoginUserHolder.get();
+        List<KnowledgeSegmentVO> segmentList =
+                knowledgeSegmentService.listSegments(loginUser.getId(), knowledgeBaseId, documentId);
+        return ResultUtils.success(segmentList);
     }
 }
