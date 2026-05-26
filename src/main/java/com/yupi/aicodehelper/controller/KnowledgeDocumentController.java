@@ -8,6 +8,7 @@ import com.yupi.aicodehelper.model.vo.KnowledgeDocumentVO;
 import com.yupi.aicodehelper.model.vo.KnowledgeSegmentVO;
 import com.yupi.aicodehelper.service.KnowledgeDocumentService;
 import com.yupi.aicodehelper.service.KnowledgeSegmentService;
+import com.yupi.aicodehelper.service.KnowledgeVectorService;
 import jakarta.annotation.Resource;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,9 @@ public class KnowledgeDocumentController {
 
     @Resource
     private KnowledgeSegmentService knowledgeSegmentService;
+
+    @Resource
+    private KnowledgeVectorService knowledgeVectorService;
 
     @PostMapping("/upload")
     public BaseResponse<Long> uploadDocument(@PathVariable Long knowledgeBaseId,
@@ -50,6 +54,15 @@ public class KnowledgeDocumentController {
         Integer segmentCount =
                 knowledgeSegmentService.parseAndSaveSegments(loginUser.getId(), knowledgeBaseId, documentId);
         return ResultUtils.success(segmentCount);
+    }
+
+    @PostMapping("/{documentId}/vectorize")
+    public BaseResponse<Integer> vectorizeDocument(@PathVariable Long knowledgeBaseId,
+                                                   @PathVariable Long documentId) {
+        User loginUser = LoginUserHolder.get();
+        Integer vectorizedCount =
+                knowledgeVectorService.vectorizeDocument(loginUser.getId(), knowledgeBaseId, documentId);
+        return ResultUtils.success(vectorizedCount);
     }
 
     @GetMapping("/{documentId}/segment/list")

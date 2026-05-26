@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 31`
+当前已完成到：`Step 32`
 
 ## Step 1
 
@@ -583,3 +583,49 @@
 - 查询切片列表只返回当前用户、当前知识库、当前文档、未删除的切片，并按 `segmentIndex` 升序返回
 - 本 Step 仅实现 Markdown / TXT 文档解析、文本切片、切片入库和切片列表查询
 - 未实现 embedding、向量库持久化、聊天接入、PDF 解析和前端页面改动
+
+## Step 32
+
+目标：
+- 实现知识库文档切片向量化，将已解析的 `knowledge_segment` 写入当前项目已有 `EmbeddingStore`
+- 为每个切片回写 `vectorId`，并更新文档与切片状态，为后续相似度检索和聊天接入做准备
+
+修改文件：
+- `src/main/java/com/yupi/aicodehelper/service/KnowledgeVectorService.java`：新增知识库文档向量化 Service 接口
+- `src/main/java/com/yupi/aicodehelper/service/impl/KnowledgeVectorServiceImpl.java`：新增向量化实现，完成权限校验、切片查询、metadata 构建、embedding 生成、EmbeddingStore 写入、`vectorId` 回写和状态更新
+- `src/main/java/com/yupi/aicodehelper/controller/KnowledgeDocumentController.java`：新增文档向量化接口
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 32 完成记录
+
+结果：
+- 新增接口：
+  - `POST /api/knowledge/base/{knowledgeBaseId}/document/{documentId}/vectorize`
+- 复用项目现有 Spring Bean：
+  - `EmbeddingModel qwenEmbeddingModel`
+  - `EmbeddingStore<TextSegment> embeddingStore`
+- 向量化时为每个 `TextSegment` 写入 metadata：
+  - `userId`
+  - `knowledgeBaseId`
+  - `documentId`
+  - `segmentId`
+  - `fileName`
+  - `fileType`
+  - `segmentIndex`
+- 向量写入成功后：
+  - 回写 `knowledge_segment.vectorId`
+  - 更新 `knowledge_segment.status = 2`
+  - 更新 `knowledge_document.status = 3`
+- 保持 `knowledge_document.segmentCount` 不变
+- 当前重新向量化时会覆盖数据库中的最新 `vectorId`，但不会删除旧的向量库记录
+
+验证：
+- 已按要求执行后端编译：
+  - `mvn -DskipTests compile`
+- 未执行前端构建
+- 未执行上传 / parse / vectorize 的手动接口联调
+
+遗留问题：
+- 本 Step 未实现相似度检索
+- 本 Step 未实现聊天接入
+- 本 Step 未实现 PDF 解析
+- 本 Step 未实现前端页面改动
+- 本 Step 未实现向量库持久化方案切换
