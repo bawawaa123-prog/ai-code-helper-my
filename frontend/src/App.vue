@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { streamChatBySession } from "@/api/chat";
 import { getCurrentUser, logout } from "@/api/auth";
+import { getKnowledgeBaseList } from "@/api/knowledge";
 import {
   createSession,
   deleteSession,
@@ -14,6 +15,8 @@ import SessionSidebar from "@/components/SessionSidebar.vue";
 
 const DEFAULT_SESSION_TITLE = "新会话";
 const DRAFT_SESSION_ID = "__draft_session__";
+const DEFAULT_ASSISTANT_MESSAGE =
+  "你好，我是 AI 编程助手。你可以直接问我学习路线、项目实战、面试题，或者让我帮你模拟面试。";
 
 const capabilityTags = ["学习路线规划", "项目实战建议", "面试模拟陪练", "简历优化提示"];
 const ragModes = [
@@ -42,16 +45,32 @@ const currentSessionId = ref(null);
 const messages = ref(createDefaultMessages());
 const isLeftSidebarCollapsed = ref(false);
 const isRightSidebarCollapsed = ref(false);
+const knowledgeBases = ref([]);
+const selectedKnowledgeBaseId = ref("");
+const knowledgeLoading = ref(false);
+const knowledgeError = ref("");
 
 let currentController = null;
 
 const isLoggedIn = computed(() => Boolean(currentUser.value));
-const canSend = computed(() => draft.value.trim() && !isStreaming.value);
+const canSend = computed(() => Boolean(draft.value.trim()) && !isStreaming.value);
 const messageCount = computed(() => messages.value.length);
 const statusText = computed(() => (isStreaming.value ? "AI 正在回复" : "准备好开始对话"));
 const currentUserName = computed(
   () => currentUser.value?.userName || currentUser.value?.userAccount || "已登录用户"
 );
+const isKnowledgeSelectorDisabled = computed(
+  () => ragMode.value === "off" || knowledgeLoading.value || isStreaming.value
+);
+const ragDescription = computed(() => {
+  if (ragMode.value === "on") {
+    return "前端强制开启 RAG";
+  }
+  if (ragMode.value === "off") {
+    return "前端强制关闭 RAG";
+  }
+  return "跟随后端默认配置";
+});
 
 const displaySessions = computed(() => {
   if (!draftSessionActive.value) {
@@ -75,23 +94,18 @@ const currentSessionTitle = computed(() => {
   return currentSession?.title || DEFAULT_SESSION_TITLE;
 });
 
-const ragDescription = computed(() => {
-  if (ragMode.value === "on") {
-    return "前端强制开启 RAG";
-  }
-  if (ragMode.value === "off") {
-    return "前端强制关闭 RAG";
-  }
-  return "跟随后端默认配置";
-});
-
 function createDefaultMessages() {
-  return [
-    createMessage(
-      "assistant",
-      "你好，我是 AI 编程小助手。你可以直接问我学习路线、项目实战、面试题，或者让我帮你模拟面试。"
-    )
-  ];
+  return [createMessage("assistant", DEFAULT_ASSISTANT_MESSAGE)];
+}
+
+function createMessage(role, content = "") {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    content,
+    sources: [],
+    sourcesExpanded: false
+  };
 }
 
 function readStoredUser() {
@@ -117,6 +131,16 @@ function resolveUseRag() {
   return undefined;
 }
 
+function resolveKnowledgeBaseIdForRequest() {
+  if (ragMode.value === "off") {
+    return undefined;
+  }
+  if (!selectedKnowledgeBaseId.value) {
+    return undefined;
+  }
+  return Number(selectedKnowledgeBaseId.value);
+}
+
 function scrollToBottom() {
   nextTick(() => {
     const el = chatBodyRef.value;
@@ -124,16 +148,6 @@ function scrollToBottom() {
       el.scrollTop = el.scrollHeight;
     }
   });
-}
-
-function createMessage(role, content = "") {
-  return {
-    id: crypto.randomUUID(),
-    role,
-    content,
-    sources: [],
-    sourcesExpanded: false
-  };
 }
 
 function activateDraftSession() {
@@ -155,6 +169,13 @@ function discardDraftSession() {
   }
 }
 
+function clearKnowledgeSelection() {
+  knowledgeBases.value = [];
+  selectedKnowledgeBaseId.value = "";
+  knowledgeError.value = "";
+  knowledgeLoading.value = false;
+}
+
 function convertHistoryMessages(historyList = []) {
   if (!Array.isArray(historyList) || historyList.length === 0) {
     return createDefaultMessages();
@@ -174,6 +195,29 @@ function toggleSources(message) {
     return;
   }
   message.sourcesExpanded = !message.sourcesExpanded;
+}
+
+async function loadKnowledgeBases() {
+  knowledgeLoading.value = true;
+  knowledgeError.value = "";
+
+  try {
+    const list = await getKnowledgeBaseList();
+    knowledgeBases.value = Array.isArray(list) ? list : [];
+
+    if (
+      selectedKnowledgeBaseId.value &&
+      !knowledgeBases.value.some((item) => String(item.id) === String(selectedKnowledgeBaseId.value))
+    ) {
+      selectedKnowledgeBaseId.value = "";
+    }
+  } catch (error) {
+    knowledgeBases.value = [];
+    selectedKnowledgeBaseId.value = "";
+    knowledgeError.value = error.message || "加载知识库列表失败";
+  } finally {
+    knowledgeLoading.value = false;
+  }
 }
 
 async function loadSessionMessages(sessionId) {
@@ -233,7 +277,7 @@ async function refreshSessions({ autoSelect = true } = {}) {
 
 async function ensureSessionOnLogin() {
   discardDraftSession();
-  await refreshSessions({ autoSelect: false });
+  await Promise.all([refreshSessions({ autoSelect: false }), loadKnowledgeBases()]);
   currentSessionId.value = null;
   messages.value = createDefaultMessages();
   sessionError.value = "";
@@ -256,6 +300,7 @@ async function restoreLoginState() {
   } catch {
     logout();
     currentUser.value = null;
+    clearKnowledgeSelection();
   } finally {
     isInitializing.value = false;
   }
@@ -271,6 +316,7 @@ function handleLogout() {
   logout();
   currentUser.value = null;
   sessions.value = [];
+  clearKnowledgeSelection();
   discardDraftSession();
   currentSessionId.value = null;
   sessionError.value = "";
@@ -420,6 +466,7 @@ async function sendMessage(prefilledMessage) {
       sessionId,
       message: content,
       useRag: resolveUseRag(),
+      knowledgeBaseId: resolveKnowledgeBaseIdForRequest(),
       signal: currentController.signal,
       onChunk(chunk) {
         assistantMessage.content += chunk;
@@ -572,8 +619,7 @@ onBeforeUnmount(() => {
                 <div class="welcome-copy">
                   <span class="welcome-badge">推荐用法</span>
                   <p>
-                    先说清你的目标和背景，例如“我准备校招前端面试”或“我想补齐 Java
-                    基础”，回答会更贴近你的阶段。
+                    先说清你的目标和背景，比如“我准备校招前端面试”或“我想补齐 Java 基础”，回答会更贴近你的阶段。
                   </p>
                 </div>
               </div>
@@ -734,6 +780,36 @@ onBeforeUnmount(() => {
                     >
                       {{ mode.label }}
                     </button>
+                  </div>
+
+                  <div class="knowledge-select-panel">
+                    <label class="knowledge-select-label" for="knowledge-base-select">
+                      知识库选择
+                    </label>
+                    <select
+                      id="knowledge-base-select"
+                      v-model="selectedKnowledgeBaseId"
+                      class="knowledge-select"
+                      :disabled="isKnowledgeSelectorDisabled"
+                    >
+                      <option value="">静态内置知识库</option>
+                      <option
+                        v-for="knowledgeBase in knowledgeBases"
+                        :key="knowledgeBase.id"
+                        :value="String(knowledgeBase.id)"
+                      >
+                        {{ knowledgeBase.name }}
+                      </option>
+                    </select>
+                    <p v-if="knowledgeLoading" class="knowledge-select-hint">
+                      正在加载我的知识库...
+                    </p>
+                    <p v-else-if="knowledgeError" class="knowledge-select-hint">
+                      {{ knowledgeError }}
+                    </p>
+                    <p v-else-if="knowledgeBases.length === 0" class="knowledge-select-hint">
+                      暂无我的知识库，可继续使用静态内置知识库。
+                    </p>
                   </div>
                 </div>
 

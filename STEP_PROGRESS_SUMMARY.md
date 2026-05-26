@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 34`
+当前已完成到：`Step 35`
 
 ## Step 1
 
@@ -728,3 +728,58 @@
 - 本 Step 未实现文档删除
 - 本 Step 未实现知识库管理页面
 - 本 Step 未实现向量库持久化方案切换
+
+## Step 35
+
+目标：
+- 实现前端知识库列表加载和知识库选择入口
+- 让聊天页面可以选择“静态内置知识库”或“我的知识库”
+- 发送消息时根据当前选择携带可选 `knowledgeBaseId`
+
+修改文件：
+- `frontend/src/api/knowledge.js`：新增知识库列表 API 封装
+- `frontend/src/App.vue`：新增知识库状态、知识库列表加载、知识库选择器和发送参数传递
+- `frontend/src/styles.css`：补充知识库选择器样式
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 35 完成记录
+
+结果：
+- 新增前端 API：
+  - `getKnowledgeBaseList()`
+  - 调用 `GET /api/knowledge/base/list`
+- `App.vue` 新增状态：
+  - `knowledgeBases`
+  - `selectedKnowledgeBaseId`
+  - `knowledgeLoading`
+  - `knowledgeError`
+- 加载规则：
+  - 用户登录成功后加载知识库列表
+  - 刷新页面恢复登录态后也会加载知识库列表
+  - 退出登录时会清空知识库列表和当前选择
+  - 加载失败不会阻断正常聊天，只显示简单提示
+- 选择器规则：
+  - 仅登录后显示
+  - RAG 关闭时选择器禁用
+  - 默认选项是“静态内置知识库”
+  - 其余选项来自“我的知识库”列表
+  - 没有知识库时保留默认选项并显示提示
+- 发送消息规则：
+  - `useRag = true` 且选中了某个我的知识库时，发送 `knowledgeBaseId`
+  - `useRag = true` 且当前选中“静态内置知识库”时，不传 `knowledgeBaseId`
+  - `useRag = false` 时，不传 `knowledgeBaseId`
+- 保持不变：
+  - `streamChatBySession` 的 SSE 解析逻辑未改
+  - `onChunk`、`onSources`、`onDone` 现有行为不变
+  - 停止生成逻辑不变
+  - 来源卡片展示逻辑不变
+
+验证：
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 未执行手动页面联调
+- 后端未修改，因此未重新编译后端
+
+遗留问题：
+- 本 Step 未实现知识库管理页面
+- 本 Step 未实现文档上传页面
+- 本 Step 未实现 PDF 解析
+- 本 Step 未实现文档删除

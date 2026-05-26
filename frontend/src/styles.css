@@ -873,6 +873,44 @@ button {
   gap: 8px;
 }
 
+.knowledge-select-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.knowledge-select-label {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.knowledge-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  outline: none;
+}
+
+.knowledge-select:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.knowledge-select-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .rag-option {
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.04);
