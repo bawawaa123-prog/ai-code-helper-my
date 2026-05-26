@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 32`
+当前已完成到：`Step 33`
 
 ## Step 1
 
@@ -628,4 +628,52 @@
 - 本 Step 未实现聊天接入
 - 本 Step 未实现 PDF 解析
 - 本 Step 未实现前端页面改动
+- 本 Step 未实现向量库持久化方案切换
+
+## Step 33
+
+目标：
+- 实现用户知识库相似度检索接口，根据用户问题从已向量化的 `knowledge_segment` 中检索相关片段
+- 返回可用于后续聊天接入的参考来源结果，但本 Step 不接入聊天链路
+
+修改文件：
+- `src/main/java/com/yupi/aicodehelper/model/dto/knowledge/KnowledgeSearchRequest.java`：新增知识库检索请求 DTO
+- `src/main/java/com/yupi/aicodehelper/service/KnowledgeSearchService.java`：新增知识库检索 Service 接口
+- `src/main/java/com/yupi/aicodehelper/service/impl/KnowledgeSearchServiceImpl.java`：新增知识库检索实现，完成参数校验、embedding 生成、EmbeddingStore 检索、metadata 过滤和结果映射
+- `src/main/java/com/yupi/aicodehelper/controller/KnowledgeSearchController.java`：新增知识库检索接口
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 33 完成记录
+
+结果：
+- 新增请求 DTO：
+  - `KnowledgeSearchRequest`
+  - 字段包括：`query`、`maxResults`、`minScore`
+- 新增接口：
+  - `POST /api/knowledge/base/{knowledgeBaseId}/search`
+- 复用项目现有 Spring Bean：
+  - `EmbeddingModel qwenEmbeddingModel`
+  - `EmbeddingStore<TextSegment> embeddingStore`
+- 检索流程：
+  - 先校验当前用户和知识库归属
+  - 再对用户问题生成 query embedding
+  - 再调用 `EmbeddingStore.search(...)` 做相似度检索
+  - 优先使用 metadata 中的 `userId`、`knowledgeBaseId` 作为过滤条件
+  - 同时在 Java 代码中再次校验检索结果归属，确保最终只返回当前用户、当前知识库的数据
+- 检索结果统一映射为 `List<RagSourceVO>`
+  - `sourceName`：优先取 `metadata.fileName`，为空时返回“未知来源”
+  - `content`：取 `TextSegment.text()`
+  - `score`：取向量检索匹配分数
+  - `metadata`：返回 `TextSegment.metadata().toMap()`
+- 若无匹配结果，返回空列表，不抛异常
+
+验证：
+- 已执行后端编译：
+  - `mvn -DskipTests compile`
+- 未执行前端构建
+- 未执行上传 / parse / vectorize / search 的手动接口联调
+
+遗留问题：
+- 本 Step 未接入聊天接口
+- 本 Step 未实现前端页面
+- 本 Step 未实现 PDF 解析
+- 本 Step 未实现知识库选择器
 - 本 Step 未实现向量库持久化方案切换
