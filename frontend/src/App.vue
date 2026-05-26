@@ -6,6 +6,10 @@ import {
   createKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseList,
+  getKnowledgeDocumentList,
+  parseKnowledgeDocument,
+  uploadKnowledgeDocument,
+  vectorizeKnowledgeDocument,
   updateKnowledgeBase
 } from "@/api/knowledge";
 import {
@@ -34,8 +38,10 @@ const quickPrompts = [
   "模拟一场前端面试，先问我三个常见问题。",
   "帮我分析简历项目，怎么写更容易通过校招筛选。"
 ];
+const SUPPORTED_DOCUMENT_SUFFIXES = [".md", ".txt"];
 
 const chatBodyRef = ref(null);
+const uploadFileInputRef = ref(null);
 const draft = ref("");
 const isStreaming = ref(false);
 const ragMode = ref("auto");
@@ -61,6 +67,11 @@ const editingKnowledgeBaseName = ref("");
 const editingKnowledgeBaseDescription = ref("");
 const knowledgeActionLoading = ref(false);
 const knowledgeActionError = ref("");
+const knowledgeDocuments = ref([]);
+const documentLoading = ref(false);
+const documentActionLoading = ref("");
+const documentError = ref("");
+const selectedUploadFile = ref(null);
 
 let currentController = null;
 
@@ -77,6 +88,25 @@ const isKnowledgeSelectorDisabled = computed(
 const isKnowledgeActionDisabled = computed(
   () => knowledgeActionLoading.value || knowledgeLoading.value || isStreaming.value
 );
+const isDocumentManagerVisible = computed(() => Boolean(selectedKnowledgeBaseId.value));
+const isDocumentActionDisabled = computed(
+  () =>
+    Boolean(documentActionLoading.value) ||
+    documentLoading.value ||
+    knowledgeLoading.value ||
+    isStreaming.value ||
+    !selectedKnowledgeBaseId.value
+);
+const currentSelectedKnowledgeBaseName = computed(() => {
+  if (!selectedKnowledgeBaseId.value) {
+    return "";
+  }
+
+  const matchedKnowledgeBase = knowledgeBases.value.find(
+    (item) => String(item.id) === String(selectedKnowledgeBaseId.value)
+  );
+  return matchedKnowledgeBase?.name || "";
+});
 const ragDescription = computed(() => {
   if (ragMode.value === "on") {
     return "前端强制开启 RAG";
@@ -111,6 +141,11 @@ const currentSessionTitle = computed(() => {
 
 function createDefaultMessages() {
   return [createMessage("assistant", DEFAULT_ASSISTANT_MESSAGE)];
+}
+
+function isSupportedDocumentFile(file) {
+  const fileName = file?.name?.toLowerCase() || "";
+  return SUPPORTED_DOCUMENT_SUFFIXES.some((suffix) => fileName.endsWith(suffix));
 }
 
 function createMessage(role, content = "") {
@@ -204,11 +239,81 @@ function clearKnowledgeSelection() {
   knowledgeActionLoading.value = false;
   resetKnowledgeForm();
   resetKnowledgeEditing();
+  clearDocumentState();
+}
+
+function resetUploadFileInput() {
+  if (uploadFileInputRef.value) {
+    uploadFileInputRef.value.value = "";
+  }
+}
+
+function clearSelectedUploadFile() {
+  selectedUploadFile.value = null;
+  resetUploadFileInput();
+}
+
+function clearDocumentState() {
+  knowledgeDocuments.value = [];
+  documentLoading.value = false;
+  documentActionLoading.value = "";
+  documentError.value = "";
+  clearSelectedUploadFile();
 }
 
 function selectKnowledgeBaseOrFallback(knowledgeBaseId) {
   const exists = knowledgeBases.value.some((item) => String(item.id) === String(knowledgeBaseId));
   selectedKnowledgeBaseId.value = exists ? String(knowledgeBaseId) : "";
+}
+
+function resolveDocumentStatusText(status) {
+  if (status === 1) {
+    return "已上传";
+  }
+  if (status === 2) {
+    return "已解析";
+  }
+  if (status === 3) {
+    return "已向量化";
+  }
+  return "未知状态";
+}
+
+function formatDocumentSize(fileSize) {
+  const size = Number(fileSize);
+  if (!Number.isFinite(size) || size < 0) {
+    return "-";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatDocumentTime(timeValue) {
+  if (!timeValue) {
+    return "-";
+  }
+
+  const date = new Date(timeValue);
+  if (Number.isNaN(date.getTime())) {
+    return String(timeValue).replace("T", " ");
+  }
+
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function isDocumentActionRunning(actionKey) {
+  return documentActionLoading.value === actionKey;
 }
 
 function startEditingKnowledgeBase(knowledgeBase) {
@@ -259,6 +364,34 @@ async function loadKnowledgeBases() {
     knowledgeError.value = error.message || "加载知识库列表失败";
   } finally {
     knowledgeLoading.value = false;
+  }
+}
+
+async function loadKnowledgeDocuments(knowledgeBaseId = selectedKnowledgeBaseId.value) {
+  if (!knowledgeBaseId) {
+    clearDocumentState();
+    return;
+  }
+
+  documentLoading.value = true;
+  documentError.value = "";
+
+  try {
+    const list = await getKnowledgeDocumentList(knowledgeBaseId);
+    if (String(selectedKnowledgeBaseId.value) !== String(knowledgeBaseId)) {
+      return;
+    }
+    knowledgeDocuments.value = Array.isArray(list) ? list : [];
+  } catch (error) {
+    if (String(selectedKnowledgeBaseId.value) !== String(knowledgeBaseId)) {
+      return;
+    }
+    knowledgeDocuments.value = [];
+    documentError.value = error.message || "加载文档列表失败";
+  } finally {
+    if (String(selectedKnowledgeBaseId.value) === String(knowledgeBaseId)) {
+      documentLoading.value = false;
+    }
   }
 }
 
@@ -347,6 +480,91 @@ async function handleDeleteKnowledgeBase(knowledgeBase) {
     knowledgeActionError.value = error.message || "删除知识库失败";
   } finally {
     knowledgeActionLoading.value = false;
+  }
+}
+
+function handleDocumentFileChange(event) {
+  const file = event.target?.files?.[0] || null;
+  documentError.value = "";
+
+  if (!file) {
+    selectedUploadFile.value = null;
+    return;
+  }
+
+  if (!isSupportedDocumentFile(file)) {
+    selectedUploadFile.value = null;
+    documentError.value = "仅支持上传 .md 或 .txt 文件";
+    resetUploadFileInput();
+    return;
+  }
+
+  selectedUploadFile.value = file;
+}
+
+async function handleUploadKnowledgeDocument() {
+  if (!selectedKnowledgeBaseId.value) {
+    return;
+  }
+  if (!selectedUploadFile.value) {
+    documentError.value = "请先选择 .md 或 .txt 文件";
+    return;
+  }
+  if (!isSupportedDocumentFile(selectedUploadFile.value)) {
+    documentError.value = "仅支持上传 .md 或 .txt 文件";
+    clearSelectedUploadFile();
+    return;
+  }
+
+  documentActionLoading.value = "upload";
+  documentError.value = "";
+
+  try {
+    await uploadKnowledgeDocument(selectedKnowledgeBaseId.value, selectedUploadFile.value);
+    clearSelectedUploadFile();
+    await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
+  } catch (error) {
+    documentError.value = error.message || "上传文档失败";
+  } finally {
+    documentActionLoading.value = "";
+  }
+}
+
+async function handleParseKnowledgeDocument(document) {
+  if (!selectedKnowledgeBaseId.value || !document?.id) {
+    return;
+  }
+
+  const actionKey = `parse-${document.id}`;
+  documentActionLoading.value = actionKey;
+  documentError.value = "";
+
+  try {
+    await parseKnowledgeDocument(selectedKnowledgeBaseId.value, document.id);
+    await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
+  } catch (error) {
+    documentError.value = error.message || "解析文档失败";
+  } finally {
+    documentActionLoading.value = "";
+  }
+}
+
+async function handleVectorizeKnowledgeDocument(document) {
+  if (!selectedKnowledgeBaseId.value || !document?.id) {
+    return;
+  }
+
+  const actionKey = `vectorize-${document.id}`;
+  documentActionLoading.value = actionKey;
+  documentError.value = "";
+
+  try {
+    await vectorizeKnowledgeDocument(selectedKnowledgeBaseId.value, document.id);
+    await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
+  } catch (error) {
+    documentError.value = error.message || "向量化文档失败";
+  } finally {
+    documentActionLoading.value = "";
   }
 }
 
@@ -658,6 +876,20 @@ function handleEnter(event) {
 }
 
 watch(messages, scrollToBottom, { deep: true });
+watch(selectedKnowledgeBaseId, async (knowledgeBaseId) => {
+  documentActionLoading.value = "";
+  documentError.value = "";
+  clearSelectedUploadFile();
+
+  if (!knowledgeBaseId) {
+    knowledgeDocuments.value = [];
+    documentLoading.value = false;
+    return;
+  }
+
+  knowledgeDocuments.value = [];
+  await loadKnowledgeDocuments(knowledgeBaseId);
+});
 
 onMounted(() => {
   scrollToBottom();
@@ -1059,6 +1291,117 @@ onBeforeUnmount(() => {
                           </div>
                         </template>
                       </article>
+                    </div>
+                  </div>
+
+                  <div v-if="isDocumentManagerVisible" class="document-manager">
+                    <p class="document-current-base">
+                      当前知识库：{{ currentSelectedKnowledgeBaseName || "未选择" }}
+                    </p>
+
+                    <div class="document-manager-head">
+                      <span class="stat-label">文档管理</span>
+                      <span class="document-manager-summary">
+                        支持上传 Markdown / TXT，并手动触发解析和向量化
+                      </span>
+                    </div>
+
+                    <p v-if="documentError" class="document-manager-error">
+                      {{ documentError }}
+                    </p>
+
+                    <div class="document-upload-form">
+                      <input
+                        ref="uploadFileInputRef"
+                        class="document-file-input"
+                        type="file"
+                        accept=".md,.txt,text/markdown,text/plain"
+                        :disabled="isDocumentActionDisabled"
+                        @change="handleDocumentFileChange"
+                      />
+                      <p class="document-upload-hint">
+                        {{ selectedUploadFile ? `已选择：${selectedUploadFile.name}` : "请选择 .md 或 .txt 文件" }}
+                      </p>
+                      <button
+                        class="knowledge-primary-button"
+                        type="button"
+                        :disabled="isDocumentActionDisabled"
+                        @click="handleUploadKnowledgeDocument"
+                      >
+                        {{ isDocumentActionRunning("upload") ? "上传中..." : "上传文档" }}
+                      </button>
+                    </div>
+
+                    <div class="document-list">
+                      <p class="document-list-base">
+                        所属知识库：{{ currentSelectedKnowledgeBaseName || "未选择" }}
+                      </p>
+                      <p v-if="documentLoading" class="document-list-hint">正在加载文档列表...</p>
+                      <p v-else-if="knowledgeDocuments.length === 0" class="document-list-hint">
+                        暂无文档
+                      </p>
+                      <template v-else>
+                        <article
+                          v-for="document in knowledgeDocuments"
+                          :key="document.id"
+                          class="document-item"
+                        >
+                          <div class="document-item-head">
+                            <strong class="document-item-name">{{ document.fileName || "未命名文档" }}</strong>
+                            <span class="document-status-badge">
+                              {{ resolveDocumentStatusText(document.status) }}
+                            </span>
+                          </div>
+
+                          <div class="document-meta-grid">
+                            <span class="document-meta-item">
+                              类型：{{ document.fileType || "-" }}
+                            </span>
+                            <span class="document-meta-item">
+                              大小：{{ formatDocumentSize(document.fileSize) }}
+                            </span>
+                            <span class="document-meta-item">
+                              切片：{{ document.segmentCount ?? 0 }}
+                            </span>
+                            <span class="document-meta-item">
+                              时间：{{ formatDocumentTime(document.updateTime || document.createTime) }}
+                            </span>
+                          </div>
+
+                          <div class="document-item-actions">
+                            <button
+                              v-if="document.status === 1 || document.status === 2 || document.status === 3"
+                              class="knowledge-secondary-button"
+                              type="button"
+                              :disabled="isDocumentActionDisabled"
+                              @click="handleParseKnowledgeDocument(document)"
+                            >
+                              {{
+                                isDocumentActionRunning(`parse-${document.id}`)
+                                  ? "解析中..."
+                                  : document.status === 3
+                                    ? "重新解析"
+                                    : "解析"
+                              }}
+                            </button>
+                            <button
+                              v-if="document.status === 2 || document.status === 3"
+                              class="knowledge-link-button"
+                              type="button"
+                              :disabled="isDocumentActionDisabled"
+                              @click="handleVectorizeKnowledgeDocument(document)"
+                            >
+                              {{
+                                isDocumentActionRunning(`vectorize-${document.id}`)
+                                  ? "向量化中..."
+                                  : document.status === 3
+                                    ? "重新向量化"
+                                    : "向量化"
+                              }}
+                            </button>
+                          </div>
+                        </article>
+                      </template>
                     </div>
                   </div>
                 </div>

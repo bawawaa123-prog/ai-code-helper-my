@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 36`
+当前已完成到：`Step 37`
 
 ## Step 1
 
@@ -836,3 +836,73 @@
 - 本 Step 未实现 PDF 解析
 - 本 Step 未实现文档删除
 - 本 Step 未实现 Step 37
+
+## Step 37
+
+目标：
+- 完成前端知识库文档管理入口
+- 支持在选中的“我的知识库”下上传 Markdown / TXT 文档、查看文档列表，并手动触发解析和向量化
+- 保持 Step 35 / Step 36 已有的聊天链路和知识库传参逻辑不变
+
+修改文件：
+- `frontend/src/api/knowledge.js`：新增知识库文档相关前端 API，补充上传、列表、解析、向量化请求封装
+- `frontend/src/App.vue`：新增文档管理状态、上传入口、文档列表展示和解析 / 向量化操作
+- `frontend/src/styles.css`：补充文档管理区域、文档列表和按钮状态样式
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 37 完成记录
+
+结果：
+- `knowledge.js` 新增前端 API：
+  - `getKnowledgeDocumentList(knowledgeBaseId)`
+  - `uploadKnowledgeDocument(knowledgeBaseId, file)`
+  - `parseKnowledgeDocument(knowledgeBaseId, documentId)`
+  - `vectorizeKnowledgeDocument(knowledgeBaseId, documentId)`
+- `App.vue` 新增文档管理状态：
+  - `knowledgeDocuments`
+  - `documentLoading`
+  - `documentActionLoading`
+  - `documentError`
+  - `selectedUploadFile`
+- 仅当选中“我的知识库”时，右侧面板显示“文档管理”区域
+- 切换到某个我的知识库后会自动加载当前知识库的文档列表
+- 切回“静态内置知识库”或退出登录时，会清空文档列表、错误状态和已选上传文件
+- 支持前端选择并上传：
+  - `.md`
+  - `.txt`
+- 上传参数名固定为：
+  - `file`
+- 未选择文件或文件类型不符合要求时，前端会直接提示，不发起上传请求
+- 文档列表展示字段包括：
+  - `fileName`
+  - `fileType`
+  - `fileSize`
+  - `segmentCount`
+  - `status`
+  - `updateTime / createTime`
+- `status` 前端映射为：
+  - `1` -> `已上传`
+  - `2` -> `已解析`
+  - `3` -> `已向量化`
+  - 其他 -> `未知状态`
+- 每条文档支持手动操作：
+  - `解析`
+  - `向量化`
+- 解析或向量化成功后都会自动刷新文档列表
+- 保持不变：
+  - 未修改 `frontend/src/api/chat.js`
+  - 未修改 `streamChatBySession` 调用规则
+  - 未修改 `knowledgeBaseId` 发送规则
+  - 未修改 `onChunk`、`onSources`、`onDone`
+  - 未修改停止生成逻辑和来源卡片展示逻辑
+
+验证：
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 后端未修改，因此未重新编译后端
+- 未执行手动页面联调和真实上传 / 解析 / 向量化点击验证
+
+遗留问题：
+- 本 Step 未实现文档删除
+- 本 Step 未实现 PDF 上传或 PDF 解析
+- 本 Step 未实现切片详情页面
+- 本 Step 未实现文档搜索页面
+- 本 Step 未实现 Step 38

@@ -100,7 +100,8 @@ button {
   padding: 14px 10px 12px;
   background: rgba(17, 24, 39, 0.9);
   border-right: 1px solid var(--line-soft);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .session-sidebar-head {
@@ -795,6 +796,7 @@ button {
 
 .context-column {
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -802,11 +804,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
+  min-height: 0;
   padding: 16px;
   background: rgba(17, 24, 39, 0.9);
   border: 1px solid var(--line-soft);
   border-radius: 18px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .context-panel.collapsed {
@@ -919,12 +924,46 @@ button {
   border-top: 1px solid var(--line-soft);
 }
 
+.document-manager {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.document-current-base,
+.document-list-base {
+  margin: 0;
+  padding: 10px 12px;
+  color: #d1fae5;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+  background: rgba(16, 163, 127, 0.12);
+  border: 1px solid rgba(16, 163, 127, 0.2);
+  border-radius: 12px;
+}
+
 .knowledge-manager-head {
   display: grid;
   gap: 6px;
 }
 
+.document-manager-head {
+  display: grid;
+  gap: 6px;
+}
+
 .knowledge-manager-summary {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.document-manager-summary,
+.document-upload-hint,
+.document-list-hint {
   color: var(--text-soft);
   font-size: 12px;
   line-height: 1.6;
@@ -941,8 +980,29 @@ button {
   border-radius: 12px;
 }
 
+.document-manager-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #fecaca;
+  font-size: 13px;
+  line-height: 1.6;
+  background: rgba(127, 29, 29, 0.26);
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  border-radius: 12px;
+}
+
 .knowledge-create-form,
 .knowledge-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+.document-upload-form,
+.document-item {
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -978,8 +1038,24 @@ button {
   line-height: 1.6;
 }
 
+.document-file-input {
+  width: 100%;
+  color: var(--text-main);
+  font: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
 .knowledge-text-input:disabled,
 .knowledge-textarea:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.document-file-input:disabled {
   color: var(--text-faint);
   cursor: not-allowed;
   opacity: 0.7;
@@ -1023,6 +1099,11 @@ button {
   gap: 10px;
 }
 
+.document-list {
+  display: grid;
+  gap: 10px;
+}
+
 .knowledge-item-head {
   display: flex;
   align-items: center;
@@ -1031,10 +1112,24 @@ button {
   flex-wrap: wrap;
 }
 
+.document-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .knowledge-item-name {
   color: #f9fafb;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.document-item-name {
+  color: #f9fafb;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
 .knowledge-item-badge {
@@ -1049,6 +1144,20 @@ button {
   border: 1px solid rgba(16, 163, 127, 0.24);
 }
 
+.document-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  color: #dbeafe;
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  border: 1px solid rgba(37, 99, 235, 0.24);
+}
+
 .knowledge-item-description {
   margin: 0;
   color: var(--text-soft);
@@ -1058,7 +1167,25 @@ button {
   word-break: break-word;
 }
 
+.document-meta-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.document-meta-item {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
 .knowledge-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.document-item-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -1139,6 +1266,10 @@ button {
   }
 
   .knowledge-item-actions {
+    flex-direction: column;
+  }
+
+  .document-item-actions {
     flex-direction: column;
   }
 
