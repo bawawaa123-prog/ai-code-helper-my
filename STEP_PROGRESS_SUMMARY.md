@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 35`
+当前已完成到：`Step 36`
 
 ## Step 1
 
@@ -783,3 +783,56 @@
 - 本 Step 未实现文档上传页面
 - 本 Step 未实现 PDF 解析
 - 本 Step 未实现文档删除
+
+## Step 36
+
+目标：
+- 实现前端知识库基础管理入口
+- 支持在聊天页面创建、重命名和删除自己的知识库
+- 操作完成后自动刷新知识库选择列表，并保持 Step 35 的聊天传参逻辑不变
+
+修改文件：
+- `frontend/src/api/knowledge.js`：扩展知识库前端 API，新增创建、更新、删除方法
+- `frontend/src/App.vue`：新增知识库管理状态、创建表单、重命名编辑态、删除逻辑和列表刷新逻辑
+- `frontend/src/styles.css`：补充知识库管理区、表单、列表和按钮样式
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 36 完成记录
+
+结果：
+- `knowledge.js` 新增前端 API：
+  - `createKnowledgeBase(data)`
+  - `updateKnowledgeBase(knowledgeBaseId, data)`
+  - `deleteKnowledgeBase(knowledgeBaseId)`
+- `App.vue` 新增知识库管理状态：
+  - `newKnowledgeBaseName`
+  - `newKnowledgeBaseDescription`
+  - `editingKnowledgeBaseId`
+  - `editingKnowledgeBaseName`
+  - `editingKnowledgeBaseDescription`
+  - `knowledgeActionLoading`
+  - `knowledgeActionError`
+- 聊天页右侧知识库区域新增基础管理入口：
+  - 可直接输入名称和描述创建知识库
+  - 可对已有知识库执行重命名和删除
+  - 创建、更新、删除成功后会自动刷新知识库列表
+- 删除当前选中的知识库后会自动切回“静态内置知识库”：
+  - `selectedKnowledgeBaseId` 置空
+- 保持 Step 35 的聊天传参规则不变：
+  - `useRag = true` 且选中“我的知识库”时才传 `knowledgeBaseId`
+  - 选择“静态内置知识库”或关闭 RAG 时不传 `knowledgeBaseId`
+- 退出登录时会清空知识库列表、当前选择和本 Step 新增的管理状态
+
+验证：
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 构建结果：
+  - 通过
+- 未执行手动页面联调
+- 后端未修改，因此未重新编译后端
+
+遗留问题：
+- 本 Step 未实现文档上传页面
+- 本 Step 未实现文档解析按钮
+- 本 Step 未实现向量化按钮
+- 本 Step 未实现 PDF 解析
+- 本 Step 未实现文档删除
+- 本 Step 未实现 Step 37

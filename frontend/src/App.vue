@@ -2,7 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { streamChatBySession } from "@/api/chat";
 import { getCurrentUser, logout } from "@/api/auth";
-import { getKnowledgeBaseList } from "@/api/knowledge";
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBase,
+  getKnowledgeBaseList,
+  updateKnowledgeBase
+} from "@/api/knowledge";
 import {
   createSession,
   deleteSession,
@@ -49,6 +54,13 @@ const knowledgeBases = ref([]);
 const selectedKnowledgeBaseId = ref("");
 const knowledgeLoading = ref(false);
 const knowledgeError = ref("");
+const newKnowledgeBaseName = ref("");
+const newKnowledgeBaseDescription = ref("");
+const editingKnowledgeBaseId = ref(null);
+const editingKnowledgeBaseName = ref("");
+const editingKnowledgeBaseDescription = ref("");
+const knowledgeActionLoading = ref(false);
+const knowledgeActionError = ref("");
 
 let currentController = null;
 
@@ -61,6 +73,9 @@ const currentUserName = computed(
 );
 const isKnowledgeSelectorDisabled = computed(
   () => ragMode.value === "off" || knowledgeLoading.value || isStreaming.value
+);
+const isKnowledgeActionDisabled = computed(
+  () => knowledgeActionLoading.value || knowledgeLoading.value || isStreaming.value
 );
 const ragDescription = computed(() => {
   if (ragMode.value === "on") {
@@ -169,11 +184,38 @@ function discardDraftSession() {
   }
 }
 
+function resetKnowledgeForm() {
+  newKnowledgeBaseName.value = "";
+  newKnowledgeBaseDescription.value = "";
+}
+
+function resetKnowledgeEditing() {
+  editingKnowledgeBaseId.value = null;
+  editingKnowledgeBaseName.value = "";
+  editingKnowledgeBaseDescription.value = "";
+}
+
 function clearKnowledgeSelection() {
   knowledgeBases.value = [];
   selectedKnowledgeBaseId.value = "";
   knowledgeError.value = "";
   knowledgeLoading.value = false;
+  knowledgeActionError.value = "";
+  knowledgeActionLoading.value = false;
+  resetKnowledgeForm();
+  resetKnowledgeEditing();
+}
+
+function selectKnowledgeBaseOrFallback(knowledgeBaseId) {
+  const exists = knowledgeBases.value.some((item) => String(item.id) === String(knowledgeBaseId));
+  selectedKnowledgeBaseId.value = exists ? String(knowledgeBaseId) : "";
+}
+
+function startEditingKnowledgeBase(knowledgeBase) {
+  editingKnowledgeBaseId.value = knowledgeBase.id;
+  editingKnowledgeBaseName.value = knowledgeBase.name || "";
+  editingKnowledgeBaseDescription.value = knowledgeBase.description || "";
+  knowledgeActionError.value = "";
 }
 
 function convertHistoryMessages(historyList = []) {
@@ -217,6 +259,94 @@ async function loadKnowledgeBases() {
     knowledgeError.value = error.message || "加载知识库列表失败";
   } finally {
     knowledgeLoading.value = false;
+  }
+}
+
+async function refreshKnowledgeBases({ selectKnowledgeBaseId } = {}) {
+  await loadKnowledgeBases();
+  if (selectKnowledgeBaseId != null) {
+    selectKnowledgeBaseOrFallback(selectKnowledgeBaseId);
+  }
+}
+
+async function handleCreateKnowledgeBase() {
+  const name = newKnowledgeBaseName.value.trim();
+  const description = newKnowledgeBaseDescription.value.trim();
+
+  if (!name) {
+    knowledgeActionError.value = "知识库名称不能为空";
+    return;
+  }
+
+  knowledgeActionLoading.value = true;
+  knowledgeActionError.value = "";
+
+  try {
+    const knowledgeBaseId = await createKnowledgeBase({
+      name,
+      description: description || undefined
+    });
+    resetKnowledgeForm();
+    await refreshKnowledgeBases({ selectKnowledgeBaseId: knowledgeBaseId });
+  } catch (error) {
+    knowledgeActionError.value = error.message || "创建知识库失败";
+  } finally {
+    knowledgeActionLoading.value = false;
+  }
+}
+
+async function handleSaveKnowledgeBaseEdit() {
+  const knowledgeBaseId = editingKnowledgeBaseId.value;
+  const name = editingKnowledgeBaseName.value.trim();
+  const description = editingKnowledgeBaseDescription.value.trim();
+
+  if (!knowledgeBaseId) {
+    return;
+  }
+  if (!name) {
+    knowledgeActionError.value = "知识库名称不能为空";
+    return;
+  }
+
+  knowledgeActionLoading.value = true;
+  knowledgeActionError.value = "";
+
+  try {
+    await updateKnowledgeBase(knowledgeBaseId, {
+      name,
+      description: description || undefined
+    });
+    await refreshKnowledgeBases({ selectKnowledgeBaseId: knowledgeBaseId });
+    resetKnowledgeEditing();
+  } catch (error) {
+    knowledgeActionError.value = error.message || "重命名知识库失败";
+  } finally {
+    knowledgeActionLoading.value = false;
+  }
+}
+
+async function handleDeleteKnowledgeBase(knowledgeBase) {
+  const confirmed = window.confirm(`确认删除知识库“${knowledgeBase.name}”吗？`);
+  if (!confirmed) {
+    return;
+  }
+
+  knowledgeActionLoading.value = true;
+  knowledgeActionError.value = "";
+
+  try {
+    await deleteKnowledgeBase(knowledgeBase.id);
+    await refreshKnowledgeBases();
+    if (String(selectedKnowledgeBaseId.value) === String(knowledgeBase.id)) {
+      selectedKnowledgeBaseId.value = "";
+    }
+    if (editingKnowledgeBaseId.value === knowledgeBase.id) {
+      resetKnowledgeEditing();
+    }
+  } catch (error) {
+    knowledgeActionError.value = error.message || "删除知识库失败";
+  } finally {
+    knowledgeActionLoading.value = false;
   }
 }
 
@@ -281,6 +411,7 @@ async function ensureSessionOnLogin() {
   currentSessionId.value = null;
   messages.value = createDefaultMessages();
   sessionError.value = "";
+  knowledgeActionError.value = "";
   scrollToBottom();
 }
 
@@ -810,6 +941,125 @@ onBeforeUnmount(() => {
                     <p v-else-if="knowledgeBases.length === 0" class="knowledge-select-hint">
                       暂无我的知识库，可继续使用静态内置知识库。
                     </p>
+                  </div>
+
+                  <div class="knowledge-manager">
+                    <div class="knowledge-manager-head">
+                      <span class="stat-label">我的知识库</span>
+                      <span class="knowledge-manager-summary">
+                        创建、重命名和删除都会自动刷新列表
+                      </span>
+                    </div>
+
+                    <p v-if="knowledgeActionError" class="knowledge-manager-error">
+                      {{ knowledgeActionError }}
+                    </p>
+
+                    <div class="knowledge-create-form">
+                      <input
+                        v-model="newKnowledgeBaseName"
+                        class="knowledge-text-input"
+                        type="text"
+                        maxlength="64"
+                        placeholder="输入知识库名称"
+                        :disabled="isKnowledgeActionDisabled"
+                      />
+                      <textarea
+                        v-model="newKnowledgeBaseDescription"
+                        class="knowledge-textarea"
+                        rows="2"
+                        maxlength="512"
+                        placeholder="可选：输入知识库描述"
+                        :disabled="isKnowledgeActionDisabled"
+                      ></textarea>
+                      <button
+                        class="knowledge-primary-button"
+                        type="button"
+                        :disabled="isKnowledgeActionDisabled"
+                        @click="handleCreateKnowledgeBase"
+                      >
+                        {{ knowledgeActionLoading ? "处理中..." : "新建知识库" }}
+                      </button>
+                    </div>
+
+                    <div class="knowledge-list">
+                      <article
+                        v-for="knowledgeBase in knowledgeBases"
+                        :key="knowledgeBase.id"
+                        class="knowledge-item"
+                        :class="{ selected: String(knowledgeBase.id) === String(selectedKnowledgeBaseId) }"
+                      >
+                        <template v-if="editingKnowledgeBaseId === knowledgeBase.id">
+                          <input
+                            v-model="editingKnowledgeBaseName"
+                            class="knowledge-text-input"
+                            type="text"
+                            maxlength="64"
+                            placeholder="知识库名称"
+                            :disabled="isKnowledgeActionDisabled"
+                          />
+                          <textarea
+                            v-model="editingKnowledgeBaseDescription"
+                            class="knowledge-textarea"
+                            rows="2"
+                            maxlength="512"
+                            placeholder="知识库描述"
+                            :disabled="isKnowledgeActionDisabled"
+                          ></textarea>
+                          <div class="knowledge-item-actions">
+                            <button
+                              class="knowledge-secondary-button"
+                              type="button"
+                              :disabled="isKnowledgeActionDisabled"
+                              @click="handleSaveKnowledgeBaseEdit"
+                            >
+                              保存
+                            </button>
+                            <button
+                              class="knowledge-link-button"
+                              type="button"
+                              :disabled="isKnowledgeActionDisabled"
+                              @click="resetKnowledgeEditing"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </template>
+
+                        <template v-else>
+                          <div class="knowledge-item-head">
+                            <strong class="knowledge-item-name">{{ knowledgeBase.name }}</strong>
+                            <span
+                              v-if="String(knowledgeBase.id) === String(selectedKnowledgeBaseId)"
+                              class="knowledge-item-badge"
+                            >
+                              当前使用
+                            </span>
+                          </div>
+                          <p v-if="knowledgeBase.description" class="knowledge-item-description">
+                            {{ knowledgeBase.description }}
+                          </p>
+                          <div class="knowledge-item-actions">
+                            <button
+                              class="knowledge-link-button"
+                              type="button"
+                              :disabled="isKnowledgeActionDisabled"
+                              @click="startEditingKnowledgeBase(knowledgeBase)"
+                            >
+                              重命名
+                            </button>
+                            <button
+                              class="knowledge-danger-button"
+                              type="button"
+                              :disabled="isKnowledgeActionDisabled"
+                              @click="handleDeleteKnowledgeBase(knowledgeBase)"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </template>
+                      </article>
+                    </div>
                   </div>
                 </div>
 
