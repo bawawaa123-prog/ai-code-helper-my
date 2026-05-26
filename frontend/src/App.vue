@@ -8,6 +8,7 @@ import {
   deleteKnowledgeDocument,
   getKnowledgeBaseList,
   getKnowledgeDocumentList,
+  getKnowledgeSegmentList,
   parseKnowledgeDocument,
   uploadKnowledgeDocument,
   vectorizeKnowledgeDocument,
@@ -73,6 +74,11 @@ const documentLoading = ref(false);
 const documentActionLoading = ref("");
 const documentError = ref("");
 const selectedUploadFile = ref(null);
+const selectedSegmentDocumentId = ref(null);
+const knowledgeSegments = ref([]);
+const segmentLoading = ref(false);
+const segmentError = ref("");
+const expandedSegmentIds = ref([]);
 
 let currentController = null;
 
@@ -260,6 +266,15 @@ function clearDocumentState() {
   documentActionLoading.value = "";
   documentError.value = "";
   clearSelectedUploadFile();
+  clearSegmentState();
+}
+
+function clearSegmentState() {
+  selectedSegmentDocumentId.value = null;
+  knowledgeSegments.value = [];
+  segmentLoading.value = false;
+  segmentError.value = "";
+  expandedSegmentIds.value = [];
 }
 
 function selectKnowledgeBaseOrFallback(knowledgeBaseId) {
@@ -315,6 +330,33 @@ function formatDocumentTime(timeValue) {
 
 function isDocumentActionRunning(actionKey) {
   return documentActionLoading.value === actionKey;
+}
+
+function resolveSegmentStatusText(status) {
+  if (status === 1) {
+    return "已切片";
+  }
+  if (status === 2) {
+    return "已向量化";
+  }
+  return "未知状态";
+}
+
+function isSegmentExpanded(segmentId) {
+  return expandedSegmentIds.value.includes(segmentId);
+}
+
+function toggleSegmentContent(segmentId) {
+  if (segmentId == null) {
+    return;
+  }
+
+  if (isSegmentExpanded(segmentId)) {
+    expandedSegmentIds.value = expandedSegmentIds.value.filter((id) => id !== segmentId);
+    return;
+  }
+
+  expandedSegmentIds.value = [...expandedSegmentIds.value, segmentId];
 }
 
 function startEditingKnowledgeBase(knowledgeBase) {
@@ -392,6 +434,41 @@ async function loadKnowledgeDocuments(knowledgeBaseId = selectedKnowledgeBaseId.
   } finally {
     if (String(selectedKnowledgeBaseId.value) === String(knowledgeBaseId)) {
       documentLoading.value = false;
+    }
+  }
+}
+
+async function loadKnowledgeSegments(document) {
+  if (!selectedKnowledgeBaseId.value || !document?.id) {
+    return;
+  }
+
+  if (selectedSegmentDocumentId.value === document.id) {
+    clearSegmentState();
+    return;
+  }
+
+  selectedSegmentDocumentId.value = document.id;
+  knowledgeSegments.value = [];
+  expandedSegmentIds.value = [];
+  segmentLoading.value = true;
+  segmentError.value = "";
+
+  try {
+    const list = await getKnowledgeSegmentList(selectedKnowledgeBaseId.value, document.id);
+    if (selectedSegmentDocumentId.value !== document.id) {
+      return;
+    }
+    knowledgeSegments.value = Array.isArray(list) ? list : [];
+  } catch (error) {
+    if (selectedSegmentDocumentId.value !== document.id) {
+      return;
+    }
+    knowledgeSegments.value = [];
+    segmentError.value = error.message || "加载切片详情失败";
+  } finally {
+    if (selectedSegmentDocumentId.value === document.id) {
+      segmentLoading.value = false;
     }
   }
 }
@@ -586,6 +663,9 @@ async function handleDeleteKnowledgeDocument(document) {
   try {
     await deleteKnowledgeDocument(selectedKnowledgeBaseId.value, document.id);
     clearSelectedUploadFile();
+    if (selectedSegmentDocumentId.value === document.id) {
+      clearSegmentState();
+    }
     await loadKnowledgeDocuments(selectedKnowledgeBaseId.value);
   } catch (error) {
     documentError.value = error.message || "删除文档失败";
@@ -906,6 +986,7 @@ watch(selectedKnowledgeBaseId, async (knowledgeBaseId) => {
   documentActionLoading.value = "";
   documentError.value = "";
   clearSelectedUploadFile();
+  clearSegmentState();
 
   if (!knowledgeBaseId) {
     knowledgeDocuments.value = [];
@@ -1396,6 +1477,24 @@ onBeforeUnmount(() => {
 
                           <div class="document-item-actions">
                             <button
+                              class="knowledge-link-button"
+                              type="button"
+                              :disabled="
+                                isDocumentActionDisabled ||
+                                document.segmentCount === 0 ||
+                                !(document.status === 2 || document.status === 3)
+                              "
+                              @click="loadKnowledgeSegments(document)"
+                            >
+                              {{
+                                selectedSegmentDocumentId === document.id
+                                  ? "收起切片"
+                                  : document.segmentCount === 0 || !(document.status === 2 || document.status === 3)
+                                    ? "暂无切片"
+                                    : "查看切片"
+                              }}
+                            </button>
+                            <button
                               v-if="document.status === 1 || document.status === 2 || document.status === 3"
                               class="knowledge-secondary-button"
                               type="button"
@@ -1436,6 +1535,70 @@ onBeforeUnmount(() => {
                               }}
                             </button>
                           </div>
+
+                          <section
+                            v-if="selectedSegmentDocumentId === document.id"
+                            class="segment-detail-panel"
+                          >
+                            <div class="segment-detail-head">
+                              <span class="stat-label">切片详情</span>
+                              <span class="segment-detail-summary">
+                                共 {{ knowledgeSegments.length }} 条，便于验证解析效果和后续检索质量
+                              </span>
+                            </div>
+
+                            <p v-if="segmentError" class="segment-detail-error">
+                              {{ segmentError }}
+                            </p>
+                            <p v-else-if="segmentLoading" class="segment-detail-hint">
+                              正在加载切片详情...
+                            </p>
+                            <p v-else-if="knowledgeSegments.length === 0" class="segment-detail-hint">
+                              暂无切片
+                            </p>
+
+                            <div v-else class="segment-list">
+                              <article
+                                v-for="segment in knowledgeSegments"
+                                :key="segment.id"
+                                class="segment-item"
+                              >
+                                <div class="segment-item-head">
+                                  <strong class="segment-item-title">
+                                    切片 #{{ segment.segmentIndex ?? "-" }}
+                                  </strong>
+                                  <span class="segment-item-badge">
+                                    {{ resolveSegmentStatusText(segment.status) }}
+                                  </span>
+                                </div>
+
+                                <div class="segment-item-meta">
+                                  <span>token：{{ segment.tokenCount ?? 0 }}</span>
+                                  <span>状态：{{ resolveSegmentStatusText(segment.status) }}</span>
+                                </div>
+
+                                <div
+                                  class="segment-content"
+                                  :class="{ expanded: isSegmentExpanded(segment.id) }"
+                                >
+                                  {{ segment.content || "暂无内容" }}
+                                </div>
+
+                                <button
+                                  class="segment-toggle-button"
+                                  type="button"
+                                  @click="toggleSegmentContent(segment.id)"
+                                >
+                                  {{ isSegmentExpanded(segment.id) ? "收起内容" : "展开内容" }}
+                                </button>
+
+                                <details v-if="segment.metadata" class="segment-metadata">
+                                  <summary>metadata</summary>
+                                  <pre>{{ segment.metadata }}</pre>
+                                </details>
+                              </article>
+                            </div>
+                          </section>
                         </article>
                       </template>
                     </div>

@@ -64,3 +64,7 @@ export function vectorizeKnowledgeDocument(knowledgeBaseId, documentId) {
 export function deleteKnowledgeDocument(knowledgeBaseId, documentId) {
   return request.delete(`/api/knowledge/base/${knowledgeBaseId}/document/${documentId}`);
 }
+
+export function getKnowledgeSegmentList(knowledgeBaseId, documentId) {
+  return request.get(`/api/knowledge/base/${knowledgeBaseId}/document/${documentId}/segment/list`);
+}

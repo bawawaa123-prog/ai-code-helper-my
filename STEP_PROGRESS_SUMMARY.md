@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 38`
+当前已完成到：`Step 39`
 
 ## Step 1
 
@@ -967,3 +967,65 @@
 - 本 Step 未实现切片详情页面
 - 本 Step 未实现文档搜索页面
 - 本 Step 未实现 Step 39
+
+## Step 39
+
+目标：
+- 完成前端文档切片详情查看入口
+- 支持在文档列表中查看某个文档解析后的切片内容
+- 方便验证解析效果和后续 RAG 检索质量
+
+修改文件：
+- `frontend/src/api/knowledge.js`：新增切片列表查询 API
+- `frontend/src/App.vue`：新增切片详情状态、“查看切片”按钮、切片加载和展开收起逻辑
+- `frontend/src/styles.css`：新增切片详情区域、切片列表、长文本展开和 metadata 展示样式
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 39 完成记录
+
+结果：
+- `knowledge.js` 新增前端 API：
+  - `getKnowledgeSegmentList(knowledgeBaseId, documentId)`
+- `App.vue` 新增切片详情状态：
+  - `selectedSegmentDocumentId`
+  - `knowledgeSegments`
+  - `segmentLoading`
+  - `segmentError`
+  - `expandedSegmentIds`
+- 文档列表每条记录新增“查看切片”按钮：
+  - 点击后调用 `getKnowledgeSegmentList(...)`
+  - 再次点击同一个文档时会收起切片详情
+  - 点击其他文档时会切换显示对应文档切片
+  - 未解析或 `segmentCount = 0` 的文档不会误展示切片
+- 切片详情展示字段包括：
+  - `segmentIndex`
+  - `content`
+  - `tokenCount`
+  - `status`
+  - `metadata`
+- `content` 默认限制最大高度，可单个切片展开 / 收起
+- `metadata` 通过折叠区以字符串形式展示，不做复杂格式化
+- 切换知识库时会清空切片详情状态
+- 删除当前正在查看切片的文档时会清空切片详情状态
+- 退出登录时会清空切片详情状态
+- 保持不变：
+  - 未修改后端接口
+  - 未修改 `frontend/src/api/chat.js`
+  - 未修改 `streamChatBySession` 调用规则
+  - 未修改 `knowledgeBaseId` 发送规则
+  - 未修改 `onChunk`、`onSources`、`onDone`
+  - 未修改上传、解析、向量化、删除接口逻辑
+  - 未修改停止生成逻辑和来源卡片展示逻辑
+
+验证：
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 后端未修改，因此未重新编译后端
+- 未执行真实页面联调和切片点击验证
+
+遗留问题：
+- 本 Step 未实现切片编辑
+- 本 Step 未实现切片删除
+- 本 Step 未实现文档搜索页面
+- 本 Step 未实现 PDF 上传或 PDF 解析
+- 本 Step 未实现物理文件删除
+- 本 Step 未实现向量库旧向量删除
+- 本 Step 未实现 Step 40
