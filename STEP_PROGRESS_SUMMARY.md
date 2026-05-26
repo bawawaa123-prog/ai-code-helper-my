@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 30`
+当前已完成到：`Step 31`
 
 ## Step 1
 
@@ -543,3 +543,43 @@
 - 查询文档列表只返回当前用户、当前知识库、未删除的文档，并按 `updateTime` 倒序
 - 本 Step 仅实现 Markdown / TXT 文档上传、原始文件保存和文档列表查询
 - 未实现文档解析、切片、embedding、向量化、聊天接入和前端页面改动
+
+## Step 31
+
+目标：
+- 实现 Markdown / TXT 文档解析与文本切片入库，将已上传文档解析成多个 `knowledge_segment` 记录，为后续 embedding 和向量化检索做准备
+
+结果：
+- 已检查 Step 30 进度记录，确认已完整记录：
+  - 已实现 Markdown / TXT 文档上传
+  - 已实现文档本地保存
+  - 已实现 `knowledge_document` 元信息入库
+  - 已实现文档列表查询
+  - 未实现解析、切片、embedding、向量化和聊天接入
+- 新增 VO：
+  - `KnowledgeSegmentVO`
+- 新增 Service：
+  - `KnowledgeSegmentService`
+  - `KnowledgeSegmentServiceImpl`
+- 扩展 `KnowledgeDocumentController`
+- 新增接口：
+  - `POST /api/knowledge/base/{knowledgeBaseId}/document/{documentId}/parse`
+  - `GET /api/knowledge/base/{knowledgeBaseId}/document/{documentId}/segment/list`
+- 解析规则：
+  - 使用 UTF-8 读取 Markdown / TXT 原始文件
+  - 统一换行、去掉首尾空白、过滤空段落
+  - 优先按段落切分
+  - 过长段落再按长度继续拆分
+  - `segmentIndex` 从 0 开始稳定递增
+  - `tokenCount` 使用 `content.length()` 近似
+- 切片入库规则：
+  - 解析前先将当前文档旧切片逻辑删除
+  - 再批量保存新的 `knowledge_segment`
+  - `vectorId = null`
+  - `metadata` 保存 `fileName`、`fileType`、`segmentIndex`
+- 解析完成后会更新：
+  - `knowledge_document.segmentCount`
+  - `knowledge_document.status = 2`
+- 查询切片列表只返回当前用户、当前知识库、当前文档、未删除的切片，并按 `segmentIndex` 升序返回
+- 本 Step 仅实现 Markdown / TXT 文档解析、文本切片、切片入库和切片列表查询
+- 未实现 embedding、向量库持久化、聊天接入、PDF 解析和前端页面改动
