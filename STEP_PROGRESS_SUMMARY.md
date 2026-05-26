@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-当前已完成到：`Step 33`
+当前已完成到：`Step 34`
 
 ## Step 1
 
@@ -676,4 +676,55 @@
 - 本 Step 未实现前端页面
 - 本 Step 未实现 PDF 解析
 - 本 Step 未实现知识库选择器
+- 本 Step 未实现向量库持久化方案切换
+
+## Step 34
+
+目标：
+- 将用户知识库检索接入后端聊天接口，让 `POST /api/ai/chat/stream` 支持可选 `knowledgeBaseId`
+- 在 RAG 模式下，基于当前用户自己的知识库片段增强回答
+- 保持不传 `knowledgeBaseId` 时原有静态 docs RAG 逻辑不变
+
+修改文件：
+- `src/main/java/com/yupi/aicodehelper/model/dto/chat/ChatStreamRequest.java`：新增 `knowledgeBaseId`
+- `src/main/java/com/yupi/aicodehelper/controller/AiController.java`：接入 `KnowledgeSearchService`，支持用户知识库 RAG、增强提示词拼接和 sources 事件切换
+- `frontend/src/api/chat.js`：扩展 `streamChatBySession`，支持可选 `knowledgeBaseId`
+- `STEP_PROGRESS_SUMMARY.md`：追加 Step 34 完成记录
+
+结果：
+- `ChatStreamRequest` 新增字段：
+  - `knowledgeBaseId`
+- `POST /api/ai/chat/stream` 行为扩展为：
+  - `useRag = true` 且 `knowledgeBaseId` 不为空时：
+    - 调用 `KnowledgeSearchService.searchKnowledgeBase(...)`
+    - 使用用户知识库检索结果拼接增强提示词
+    - 调用 `aiCodeHelperServiceFactory.chatStream(..., false)`，避免混用静态 docs RAG
+    - SSE `sources` 事件返回本轮用户知识库来源
+  - `useRag = true` 且 `knowledgeBaseId` 为空时：
+    - 保持原有静态 docs RAG 逻辑不变
+    - SSE `sources` 事件继续返回 `RagQueryService` 的静态来源结果
+  - `useRag = false` 时：
+    - 忽略 `knowledgeBaseId`
+    - 仍只返回 `done`
+- 数据持久化规则保持：
+  - 数据库保存的 user 消息仍为用户原始 `message`
+  - 会话标题仍基于用户原始 `message`
+  - assistant 回复仍按原逻辑持久化
+  - 不保存增强提示词到数据库
+- 前端 API 层已兼容：
+  - `streamChatBySession` 支持可选 `knowledgeBaseId`
+  - 当前页面不传 `knowledgeBaseId` 时现有聊天行为不变
+
+验证：
+- 已执行后端编译：
+  - `mvn -DskipTests compile`
+- 已执行前端构建：
+  - `cd frontend && npm run build`
+- 未执行手动 `curl` / SSE 联调
+
+遗留问题：
+- 本 Step 未实现前端知识库选择器
+- 本 Step 未实现 PDF 解析
+- 本 Step 未实现文档删除
+- 本 Step 未实现知识库管理页面
 - 本 Step 未实现向量库持久化方案切换

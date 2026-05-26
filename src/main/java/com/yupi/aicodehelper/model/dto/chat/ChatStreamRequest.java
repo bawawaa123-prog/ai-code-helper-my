@@ -10,4 +10,6 @@ public class ChatStreamRequest {
     private String message;
 
     private Boolean useRag;
+
+    private Long knowledgeBaseId;
 }

@@ -149,17 +149,23 @@ async function streamChatByMemoryId({ memoryId, message, useRag, signal, onChunk
   });
 }
 
-async function streamChatBySession({ sessionId, message, useRag, signal, onChunk, onSources, onDone }) {
+async function streamChatBySession({ sessionId, message, useRag, knowledgeBaseId, signal, onChunk, onSources, onDone }) {
+  const body = {
+    sessionId,
+    message,
+    useRag
+  };
+
+  if (knowledgeBaseId != null) {
+    body.knowledgeBaseId = knowledgeBaseId;
+  }
+
   const response = await fetch("/api/ai/chat/stream", {
     method: "POST",
     headers: buildStreamHeaders({
       "Content-Type": "application/json"
     }),
-    body: JSON.stringify({
-      sessionId,
-      message,
-      useRag
-    }),
+    body: JSON.stringify(body),
     signal
   });
 
